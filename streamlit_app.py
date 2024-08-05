@@ -1,151 +1,135 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
-import math
-from pathlib import Path
+import numpy as np
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.model_selection import train_test_split
+from nltk.sentiment import SentimentIntensityAnalyzer
+import nltk
+import pytz
+from datetime import datetime
+import streamlit.components.v1 as components
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+nltk.download('vader_lexicon')
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Define the ticker symbol for Bitcoin
+ticker = 'BTC-USD'
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# Define the timezone for EST
+est = pytz.timezone('America/New_York')
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+# Function to convert datetime to EST
+def to_est(dt):
+    return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+# Fetch live data from Yahoo Finance
+data = yf.download(ticker, period='1d', interval='1m')
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+# Convert index to EST if it's not already timezone-aware
+if data.index.tzinfo is None:
+    data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
+else:
+    data.index = data.index.tz_convert(est)
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+# Calculate technical indicators
+data['RSI'] = data['Close'].rolling(window=14).apply(lambda x: (x/x.shift(1)-1).mean())
+data['BB_Middle'] = data['Close'].rolling(window=20).mean()
+data['BB_Upper'] = data['BB_Middle'] + 2 * data['Close'].rolling(window=20).std()
+data['BB_Lower'] = data['BB_Middle'] - 2 * data['Close'].rolling(window=20).std()
+data['MACD'] = data['Close'].ewm(span=12, adjust=False).mean() - data['Close'].ewm(span=26, adjust=False).mean()
+data['Stoch_OSC'] = (data['Close'] - data['Close'].rolling(window=14).min()) / (data['Close'].rolling(window=14).max() - data['Close'].rolling(window=14).min())
+data['Force_Index'] = data['Close'].diff() * data['Volume']
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+# Perform sentiment analysis using nltk
+sia = SentimentIntensityAnalyzer()
+data['Sentiment'] = data['Close'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
 
-    return gdp_df
+# Drop rows with NaN values
+data.dropna(inplace=True)
 
-gdp_df = get_gdp_data()
+# Define machine learning model using scikit-learn
+X = pd.concat([data['Close'], data['RSI'], data['BB_Middle'], data['BB_Upper'], data['BB_Lower'], data['MACD'], data['Stoch_OSC'], data['Force_Index'], data['Sentiment']], axis=1)
+y = data['Close'].shift(-1).dropna()
 
-# -----------------------------------------------------------------------------
-# Draw the actual page
+# Align X and y
+X = X.iloc[:len(y)]  # Ensure X and y have the same number of rows
 
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
+# Split data into training and testing sets
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
+# Define customizable parameters using streamlit
+st.title('Bitcoin Model with Advanced Features')
+st.write('Select parameters:')
+n_estimators = st.slider('n_estimators', 1, 100, 50)
+rsi_period = st.slider('RSI period', 1, 100, 14)
+bb_period = st.slider('BB period', 1, 100, 20)
+sentiment_threshold = st.slider('Sentiment threshold', -1.0, 1.0, 0.0)
 
-# Add some spacing
-''
-''
+# Train the model
+model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
+model.fit(X_train, y_train)
 
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
+# Generate predictions
+predictions = model.predict(X_test)
 
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
+# Generate buy/sell signals based on predictions
+buy_sell_signals = np.where(predictions > X_test['Close'], 'BUY', 'SELL')
 
-countries = gdp_df['Country Code'].unique()
+# Create a DataFrame for the signals
+signals_df = pd.DataFrame({
+    'Date': X_test.index,
+    'Signal': buy_sell_signals
+})
 
-if not len(countries):
-    st.warning("Select at least one country")
+# Convert 'Date' column to EST timezone
+signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
+signals_df = signals_df.sort_values(by='Date')  # Sort by date
 
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
+# Display buy/sell signals with date and time in Streamlit
+st.write('Buy/Sell Signals:')
+for _, row in signals_df.iterrows():
+    formatted_date = row['Date'].strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
+    st.write(f"{formatted_date} - **{row['Signal']}**")
 
-''
-''
-''
+    if row['Signal'] == 'BUY':
+        # Predict the next significant move to determine holding time
+        hold_time = np.random.randint(1, 5)  # Placeholder for actual logic
+        sell_date = row['Date'] + pd.Timedelta(minutes=hold_time * 60)  # Assuming holding period in hours
+        formatted_sell_date = sell_date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
+        st.write(f"Suggested Hold Until: **{formatted_sell_date}**")
 
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
+# Plot the price chart
+st.line_chart(data['Close'])
 
-st.header('GDP over time', divider='gray')
+# Add JavaScript to auto-refresh the Streamlit app every 60 seconds
+components.html("""
+<script>
+setTimeout(function(){
+   window.location.reload();
+}, 60000);  // Refresh every 60 seconds
+</script>
+""", height=0)
 
-''
+# Final decision on option strategy
+st.write('Final Decision:')
+latest_signal = signals_df.iloc[-1]['Signal']
+reason = ""
 
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
+# Decision based on the latest signal and sentiment
+if latest_signal == 'BUY':
+    if data['Sentiment'].iloc[-1] > sentiment_threshold:
+        decision = "Place a CALL option"
+        reason = "The model suggests a buy signal, and the sentiment is positive."
+    else:
+        decision = "Place a PUT option"
+        reason = "The model suggests a buy signal, but the sentiment is negative, indicating caution."
+else:
+    if data['Sentiment'].iloc[-1] < sentiment_threshold:
+        decision = "Place a PUT option"
+        reason = "The model suggests a sell signal, and the sentiment is negative."
+    else:
+        decision = "Place a CALL option"
+        reason = "The model suggests a sell signal, but the sentiment is positive, indicating caution."
 
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[gdp_df['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[gdp_df['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+st.write(f"Decision: **{decision}**")
+st.write(f"Reason: {reason}")
