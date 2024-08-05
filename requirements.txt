@@ -1,2 +1,7 @@
 streamlit
+yfinance
+nltk
+scikit-learn
+pytz
+plotly
 pandas
