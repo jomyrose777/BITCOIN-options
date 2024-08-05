@@ -83,7 +83,6 @@ signals_df = pd.DataFrame({
 
 # Convert 'Date' column to EST timezone
 signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
-signals_df = signals_df.sort_values(by='Date')  # Sort by date
 
 # Display buy/sell signals with date and time in Streamlit
 st.write('Buy/Sell Signals:')
