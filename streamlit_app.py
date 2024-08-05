@@ -84,16 +84,19 @@ signals_df = pd.DataFrame({
 # Convert 'Date' column to EST timezone
 signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
 
-# Display buy/sell signals with date and time in Streamlit
-st.write('Buy/Sell Signals:')
-for _, row in signals_df.iterrows():
-    formatted_date = row['Date'].strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
-    st.write(f"{formatted_date} - **{row['Signal']}**")
+# Add signals to a list for display before plotting
+signal_list = signals_df[['Date', 'Signal']].values.tolist()
 
-    if row['Signal'] == 'BUY':
+# Display buy/sell signals with date and time in Streamlit
+st.write('### Buy/Sell Signals:')
+for date, signal in signal_list:
+    formatted_date = date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
+    st.write(f"{formatted_date} - **{signal}**")
+
+    if signal == 'BUY':
         # Predict the next significant move to determine holding time
         hold_time = np.random.randint(1, 5)  # Placeholder for actual logic
-        sell_date = row['Date'] + pd.Timedelta(minutes=hold_time * 60)  # Assuming holding period in hours
+        sell_date = date + pd.Timedelta(minutes=hold_time * 60)  # Assuming holding period in hours
         formatted_sell_date = sell_date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
         st.write(f"Suggested Hold Until: **{formatted_sell_date}**")
 
@@ -110,25 +113,38 @@ setTimeout(function(){
 """, height=0)
 
 # Final decision on option strategy
-st.write('Final Decision:')
+st.write('### Final Decision:')
+
+# Initialize counters for bullish and bearish signals
+bullish_signals = 0
+bearish_signals = 0
+
+# Check the latest signal and sentiment
 latest_signal = signals_df.iloc[-1]['Signal']
-reason = ""
+latest_sentiment = data['Sentiment'].iloc[-1]
 
-# Decision based on the latest signal and sentiment
+# Count signals
 if latest_signal == 'BUY':
-    if data['Sentiment'].iloc[-1] > sentiment_threshold:
-        decision = "Place a CALL option"
-        reason = "The model suggests a buy signal, and the sentiment is positive."
-    else:
-        decision = "Place a PUT option"
-        reason = "The model suggests a buy signal, but the sentiment is negative, indicating caution."
-else:
-    if data['Sentiment'].iloc[-1] < sentiment_threshold:
-        decision = "Place a PUT option"
-        reason = "The model suggests a sell signal, and the sentiment is negative."
-    else:
-        decision = "Place a CALL option"
-        reason = "The model suggests a sell signal, but the sentiment is positive, indicating caution."
+    bullish_signals += 1
+elif latest_signal == 'SELL':
+    bearish_signals += 1
 
-st.write(f"Decision: **{decision}**")
-st.write(f"Reason: {reason}")
+# Analyze sentiment
+if latest_sentiment > sentiment_threshold:
+    bullish_signals += 1
+elif latest_sentiment < sentiment_threshold:
+    bearish_signals += 1
+
+# Decision based on the count of signals and sentiment
+if bullish_signals > bearish_signals:
+    decision = "Place a CALL option"
+    reason = "The model suggests a buy signal, and the sentiment is positive."
+elif bearish_signals > bullish_signals:
+    decision = "Place a PUT option"
+    reason = "The model suggests a sell signal, and the sentiment is negative."
+else:
+    decision = "Hold off on trading options"
+    reason = "The signals are mixed or inconclusive."
+
+st.write(f"**Decision:** {decision}")
+st.write(f"**Reason:** {reason}")
