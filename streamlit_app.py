@@ -78,11 +78,19 @@ buy_sell_signals = np.where(predictions > X_test['Close'], 'BUY', 'SELL')
 # Create a DataFrame for the signals
 signals_df = pd.DataFrame({
     'Date': X_test.index,
-    'Signal': buy_sell_signals
+    'Signal': buy_sell_signals,
+    'Actual_Close': y_test,
+    'Predicted_Close': predictions
 })
 
 # Convert 'Date' column to EST timezone
 signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
+
+# Create true labels based on actual market movement
+signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signals_df['Actual_Close'], 'BUY', 'SELL')
+
+# Calculate accuracy of the signals
+accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 
 # Add signals to a list for display before plotting
 signal_list = signals_df[['Date', 'Signal']].values.tolist()
@@ -146,5 +154,7 @@ else:
     decision = "Hold off on trading options"
     reason = "The signals are mixed or inconclusive."
 
+# Display final decision and signal accuracy
 st.write(f"**Decision:** {decision}")
 st.write(f"**Reason:** {reason}")
+st.write(f"**Signal Accuracy:** {accuracy:.2%}")
