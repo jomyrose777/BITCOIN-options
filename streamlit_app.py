@@ -95,12 +95,12 @@ signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signa
 # Calculate accuracy of the signals
 accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 
-# Add signals to a list for display before plotting, and reverse the order to show newer signals first
-signal_list = signals_df[['Date', 'Signal']].values.tolist()[::-1]
+# Add signals to a list for display
+signal_list = signals_df[['Date', 'Signal']].values.tolist()
 
 # Display buy/sell signals with date and time in Streamlit
 st.write('### Buy/Sell Signals:')
-for date, signal in signal_list:
+for date, signal in reversed(signal_list):  # Show newer signals first
     formatted_date = date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
     st.write(f"{formatted_date} - **{signal}**")
 
@@ -114,31 +114,6 @@ for date, signal in signal_list:
 # Plot the price chart
 st.line_chart(data['Close'])
 
-# Fetch latest news from Yahoo Finance
-st.write('### Latest News:')
-news = yf_news.get_yf_rss("BTC-USD")
-for article in news:
-    title = article.get('title', 'No title available')
-    link = article.get('link', 'No link available')
-    pub_date = article.get('pubDate', 'No publication date available')
-    st.write(f"**{title}**")
-    st.write(f"Published on: {pub_date}")
-    st.write(f"Link: {link}")
-    st.write("---")
-
-# Fetch Fear and Greed Index from Alternative.me
-def fetch_fear_and_greed():
-    url = 'https://alternative.me/crypto/fear-and-greed-index/'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    value = soup.find('div', {'class': 'fng-circle'}).text.strip()
-    return int(value)
-
-fear_and_greed_index = fetch_fear_and_greed()
-
-st.write('### Fear and Greed Index:')
-st.write(f"The current Fear and Greed Index is: **{fear_and_greed_index}**")
-
 # Add JavaScript to auto-refresh the Streamlit app every 60 seconds
 components.html("""
 <script>
@@ -147,6 +122,31 @@ setTimeout(function(){
 }, 60000);  // Refresh every 60 seconds
 </script>
 """, height=0)
+
+# Fetch and display news about Bitcoin
+st.write('### Latest Bitcoin News:')
+try:
+    news_data = yf_news.get_yf_news(ticker)
+    for article in news_data:
+        st.write(f"**{article['title']}**")
+        st.write(f"Published on: {article['published_at']}")
+        st.write(f"Link: [Read more]({article['link']})")
+        st.write()
+except Exception as e:
+    st.write("Error fetching news:", e)
+
+# Fetch and display Fear and Greed Index
+st.write('### Fear and Greed Index:')
+try:
+    url = 'https://alternative.me/crypto/fear-and-greed-index/'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    fear_greed_index = soup.find('div', class_='fng-circle').text.strip()
+    fear_greed_description = soup.find('div', class_='fng-description').text.strip()
+    st.write(f"Index: {fear_greed_index}")
+    st.write(f"Description: {fear_greed_description}")
+except Exception as e:
+    st.write("Error fetching Fear and Greed Index:", e)
 
 # Final decision on option strategy
 st.write('### Final Decision:')
@@ -171,28 +171,19 @@ if latest_sentiment > sentiment_threshold:
 elif latest_sentiment < sentiment_threshold:
     bearish_signals += 1
 
-# Include Fear and Greed Index in the decision
-if fear_and_greed_index > 50:
-    bullish_signals += 1
-elif fear_and_greed_index < 50:
-    bearish_signals += 1
-
-# Decision based on the count of signals, sentiment, and Fear and Greed Index
+# Decision based on the count of signals and sentiment
 if bullish_signals > bearish_signals:
-    decision = "BUY OPTION 🟢⬆️"
-    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
+    decision = "Place a CALL option"
+    reason = "The model suggests a buy signal, and the sentiment is positive."
 elif bearish_signals > bullish_signals:
-    decision = "SELL OPTION 🔴⬇️"
-    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
+    decision = "Place a PUT option"
+    reason = "The model suggests a sell signal, and the sentiment is negative."
 else:
-    decision = "HOLD OPTION 🟡"
-    reason = "The signals are mixed; it's best to hold the current position."
+    decision = "Hold off on trading options"
+    reason = "The signals are mixed or inconclusive."
 
-st.write(f"### Decision: {decision}")
+# Display final decision and signal accuracy
+st.write(f"**Decision:** {decision}")
 st.write(f"**Reason:** {reason}")
+st.write(f"**Signal Accuracy:** {accuracy:.2%}")
 
-# Display the technical indicators
-st.write('### Technical Indicators:')
-st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
-st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
-st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
