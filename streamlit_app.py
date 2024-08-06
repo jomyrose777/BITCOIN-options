@@ -14,18 +14,9 @@ import requests
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import os
-import os
-import nltk
 
-nltk_data_dir = nltk.data.path[0]
-vader_lexicon_path = os.path.join(nltk_data_dir, 'vader_lexicon', 'vader_lexicon.zip')
-
-if not os.path.exists(vader_lexicon_path):
-    nltk.download('vader_lexicon')
-
-# Check if 'vader_lexicon' is already downloaded
-if not os.path.exists(nltk.data.find('vader_lexicon.zip').path):
-    nltk.download('vader_lexicon', download_dir=os.path.expanduser('~/.nltk_data'))
+# Ensure vader_lexicon is available
+nltk.download('vader_lexicon', download_dir=os.path.expanduser('~/.nltk_data'))
 
 # Initialize SentimentIntensityAnalyzer
 sia = SentimentIntensityAnalyzer()
@@ -156,7 +147,9 @@ if fear_and_greed_index is not None:
     elif fear_and_greed_index < 50:
         bearish_signals += 1
 
-# ... (rest of the code remains the same)
+# Define support and resistance (example values; adjust as needed)
+support = data['BB_Lower'].iloc[-1]
+resistance = data['BB_Upper'].iloc[-1]
 
 # Decision based on the count of signals, sentiment, and Fear and Greed Index
 if bullish_signals > bearish_signals:
@@ -182,7 +175,8 @@ else:
 
 st.write(f"### Decision: {decision}")
 st.write(f"**Reason:** {reason}")
-st.write(f"**Stop Loss:** {stop_loss:.3f}")
+if stop_loss is not None:
+    st.write(f"**Stop Loss:** {stop_loss:.3f}")
 st.write(f"### Day Trading Decision: {day_trading_decision}")
 # Display buy/sell signals in a table
 st.write('### Buy/Sell Signals:')
