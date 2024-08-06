@@ -199,3 +199,25 @@ setTimeout(function(){
 }, 60000);  // Refresh every 60 seconds
 </script>
 """, height=0)
+
+# Plot the price chart with support and resistance
+st.write('### Bitcoin Price Chart with Support and Resistance')
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(data['Close'], label='Close')
+ax.plot(data['BB_Middle'], label='BB Middle')
+ax.plot(data['BB_Upper'], label='BB Upper', linestyle='--')
+ax.plot(data['BB_Lower'], label='BB Lower', linestyle='--')
+ax.set_title('Bitcoin Price Chart with Support and Resistance')
+ax.set_xlabel('Time')
+ax.set_ylabel('Price')
+ax.legend(loc='upper left')
+st.pyplot(fig)
+
+# Plot the 1-hour chart
+st.write('### 1-Hour Bitcoin Price Chart')
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(data['Close'].resample('1h').mean())
+ax.set_title('1-Hour Bitcoin Price Chart')
+ax.set_xlabel('Time')
+ax.set_ylabel('Price')
+st.pyplot(fig)
