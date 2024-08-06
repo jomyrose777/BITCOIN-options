@@ -9,12 +9,11 @@ import nltk
 import pytz
 from datetime import datetime
 import streamlit.components.v1 as components
-from yahoo_fin import news as yf_news
 import requests
 from bs4 import BeautifulSoup
 
 # Ensure vader_lexicon is available
-nltk.download('vader_lexicon', download_dir=os.path.expanduser('~/.nltk_data'))
+nltk.download('vader_lexicon')
 
 # Initialize SentimentIntensityAnalyzer
 sia = SentimentIntensityAnalyzer()
@@ -180,6 +179,7 @@ st.write(f"**Reason:** {reason}")
 if stop_loss is not None:
     st.write(f"**Stop Loss:** {stop_loss:.3f}")
 st.write(f"### Day Trading Decision: {day_trading_decision}")
+
 # Display buy/sell signals in a table
 st.write('### Buy/Sell Signals:')
 st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
@@ -187,17 +187,23 @@ st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
 # Plot the price chart
 st.line_chart(data['Close'])
 
-# Fetch latest news from Yahoo Finance
+# Fetch latest news using BeautifulSoup
 st.write('### Latest News:')
-news = yf_news.get_yf_rss("BTC-USD")
-for article in news:
-    title = article.get('title', 'No title available')
-    link = article.get('link', 'No link available')
-    pub_date = article.get('pubDate', 'No publication date available')
-    st.write(f"**{title}**")
-    st.write(f"Published on: {pub_date}")
-    st.write(f"Link: [Read more]({link})")
-    st.write("---")
+try:
+    url = 'https://www.coindesk.com/feed/'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'xml')
+    articles = soup.find_all('item')
+    for article in articles[:5]:  # Limit to latest 5 news items
+        title = article.title.text
+        link = article.link.text
+        pub_date = article.pubDate.text
+        st.write(f"**{title}**")
+        st.write(f"Published on: {pub_date}")
+        st.write(f"Link: [Read more]({link})")
+        st.write("---")
+except Exception as e:
+    st.error(f"Error fetching news: {e}")
 
 # Add JavaScript to auto-refresh the Streamlit app every 60 seconds
 components.html("""
