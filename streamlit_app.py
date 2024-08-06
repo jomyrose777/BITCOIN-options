@@ -13,8 +13,14 @@ from yahoo_fin import news as yf_news
 import requests
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
+import os
 
-nltk.download('vader_lexicon')
+# Check if 'vader_lexicon' is already downloaded
+if not os.path.exists(nltk.data.find('vader_lexicon.zip').path):
+    nltk.download('vader_lexicon', download_dir=os.path.expanduser('~/.nltk_data'))
+
+# Initialize SentimentIntensityAnalyzer
+sia = SentimentIntensityAnalyzer()
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
@@ -45,7 +51,6 @@ data['Stoch_OSC'] = (data['Close'] - data['Close'].rolling(window=14).min()) / (
 data['Force_Index'] = data['Close'].diff() * data['Volume']
 
 # Perform sentiment analysis using nltk
-sia = SentimentIntensityAnalyzer()
 data['Sentiment'] = data['Close'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
 
 # Drop rows with NaN values
