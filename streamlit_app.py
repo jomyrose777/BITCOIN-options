@@ -98,6 +98,20 @@ accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 # Sort signals to show the latest first
 signals_df = signals_df.sort_values(by='Date', ascending=False)
 
+# Fetch Fear and Greed Index from Alternative.me
+def fetch_fear_and_greed():
+    try:
+        url = 'https://alternative.me/crypto/fear-and-greed-index/'
+        response = requests.get(url)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        value = soup.find('div', {'class': 'fng-circle'}).text.strip()
+        return int(value)
+    except Exception as e:
+        st.error(f"Error fetching Fear and Greed Index: {e}")
+        return None
+
+fear_and_greed_index = fetch_fear_and_greed()
+
 # Display decision section at the top
 st.write('### Final Decision:')
 
@@ -122,11 +136,11 @@ elif latest_sentiment < sentiment_threshold:
     bearish_signals += 1
 
 # Include Fear and Greed Index in the decision
-fear_and_greed_index = fetch_fear_and_greed()
-if fear_and_greed_index > 50:
-    bullish_signals += 1
-elif fear_and_greed_index < 50:
-    bearish_signals += 1
+if fear_and_greed_index is not None:
+    if fear_and_greed_index > 50:
+        bullish_signals += 1
+    elif fear_and_greed_index < 50:
+        bearish_signals += 1
 
 # Decision based on the count of signals, sentiment, and Fear and Greed Index
 if bullish_signals > bearish_signals:
@@ -166,19 +180,6 @@ for article in news:
     st.write(f"Published on: {pub_date}")
     st.write(f"Link: {link}")
     st.write("---")
-
-# Fetch Fear and Greed Index from Alternative.me
-def fetch_fear_and_greed():
-    url = 'https://alternative.me/crypto/fear-and-greed-index/'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'html.parser')
-    value = soup.find('div', {'class': 'fng-circle'}).text.strip()
-    return int(value)
-
-fear_and_greed_index = fetch_fear_and_greed()
-
-st.write('### Fear and Greed Index:')
-st.write(f"The current Fear and Greed Index is: **{fear_and_greed_index}**")
 
 # Add JavaScript to auto-refresh the Streamlit app every 60 seconds
 components.html("""
