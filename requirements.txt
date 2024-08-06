@@ -1,12 +1,11 @@
+
 streamlit
 yfinance
-nltk
-scikit-learn
-pytz
-plotly
 pandas
+numpy
+scikit-learn
+nltk
+pytz
 requests
 beautifulsoup4
-yahoo_fin
 matplotlib
-r
