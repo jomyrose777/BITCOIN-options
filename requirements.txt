@@ -5,3 +5,5 @@ scikit-learn
 pytz
 plotly
 pandas
+requests
+beautifulsoup4
