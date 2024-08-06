@@ -99,6 +99,10 @@ fear_and_greed_index = fetch_fear_and_greed()
 # Display the title
 st.title('BTC-Derivatives Technical Analysis')
 
+# Calculate support and resistance levels
+support = data['BB_Lower'].iloc[-1]
+resistance = data['BB_Upper'].iloc[-1]
+
 # Plot the price chart with support and resistance
 st.write('### Bitcoin Price Chart with Support and Resistance')
 fig, ax = plt.subplots(figsize=(12, 6))
