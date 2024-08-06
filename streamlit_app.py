@@ -60,7 +60,7 @@ X = X.iloc[:len(y)]  # Ensure X and y have the same number of rows
 # Split data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Define customizable parameters using Streamlit
+# Define customizable parameters using streamlit
 st.title('Bitcoin Model with Advanced Features')
 st.write('Select parameters:')
 n_estimators = st.slider('n_estimators', 1, 100, 50)
@@ -95,9 +95,21 @@ signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signa
 # Calculate accuracy of the signals
 accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 
-# Display buy/sell signals in table format
+# Add signals to a list for display before plotting, and reverse the order to show newer signals first
+signal_list = signals_df[['Date', 'Signal']].values.tolist()[::-1]
+
+# Display buy/sell signals with date and time in Streamlit
 st.write('### Buy/Sell Signals:')
-st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close', 'True_Label']])
+for date, signal in signal_list:
+    formatted_date = date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
+    st.write(f"{formatted_date} - **{signal}**")
+
+    if signal == 'BUY':
+        # Predict the next significant move to determine holding time
+        hold_time = np.random.randint(1, 5)  # Placeholder for actual logic
+        sell_date = date + pd.Timedelta(minutes=hold_time * 60)  # Assuming holding period in hours
+        formatted_sell_date = sell_date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
+        st.write(f"Suggested Hold Until: **{formatted_sell_date}**")
 
 # Plot the price chart
 st.line_chart(data['Close'])
@@ -106,9 +118,12 @@ st.line_chart(data['Close'])
 st.write('### Latest News:')
 news = yf_news.get_yf_rss("BTC-USD")
 for article in news:
-    st.write(f"**{article['title']}**")
-    st.write(f"Published on: {article['pubDate']}")
-    st.write(f"Link: {article['link']}")
+    title = article.get('title', 'No title available')
+    link = article.get('link', 'No link available')
+    pub_date = article.get('pubDate', 'No publication date available')
+    st.write(f"**{title}**")
+    st.write(f"Published on: {pub_date}")
+    st.write(f"Link: {link}")
     st.write("---")
 
 # Fetch Fear and Greed Index from Alternative.me
@@ -175,11 +190,9 @@ else:
 
 st.write(f"### Decision: {decision}")
 st.write(f"**Reason:** {reason}")
-st.write(f"**Signal Accuracy:** {accuracy:.2%}")
 
 # Display the technical indicators
 st.write('### Technical Indicators:')
 st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
-st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴' if data['MACD'].iloc[-1] < 0 else 'Neutral 🟡'}")
-st.write(f"Stochastic Oscillator: {data['Stoch_OSC'].iloc[-1]:.3f} - {'Buy 🟢' if data['Stoch_OSC'].iloc[-1] < 0.2 else 'Sell 🔴' if data['Stoch_OSC'].iloc[-1] > 0.8 else 'Neutral 🟡'}")
-st.write(f"Force Index: {data['Force_Index'].iloc[-1]:.3f} - {'Buy 🟢' if data['Force_Index'].iloc[-1] > 0 else 'Sell 🔴' if data['Force_Index'].iloc[-1] < 0 else 'Neutral 🟡'}")
+st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
+st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
