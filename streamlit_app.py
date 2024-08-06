@@ -77,7 +77,7 @@ model.fit(X_train, y_train)
 predictions = model.predict(X_test)
 
 # Generate buy/sell signals based on predictions
-buy_sell_signals = np.where(predictions > X_test['Close'], 'BUY', 'SELL')
+buy_sell_signals = np.where(predictions > X_test['Close'], 'GO LONG', 'GO SHORT')
 
 # Create a DataFrame for the signals
 signals_df = pd.DataFrame({
@@ -91,7 +91,7 @@ signals_df = pd.DataFrame({
 signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
 
 # Create true labels based on actual market movement
-signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signals_df['Actual_Close'], 'BUY', 'SELL')
+signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signals_df['Actual_Close'], 'GO LONG', 'GO SHORT')
 
 # Calculate accuracy of the signals
 accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
@@ -113,10 +113,6 @@ def fetch_fear_and_greed():
 
 fear_and_greed_index = fetch_fear_and_greed()
 
-# Calculate support and resistance levels (example method)
-support = data['Close'].min()
-resistance = data['Close'].max()
-
 # Display decision section at the top
 st.write('### Final Decision:')
 
@@ -129,9 +125,9 @@ latest_signal = signals_df.iloc[0]['Signal']
 latest_sentiment = data['Sentiment'].iloc[-1]
 
 # Count signals
-if latest_signal == 'BUY':
+if latest_signal == 'GO LONG':
     bullish_signals += 1
-elif latest_signal == 'SELL':
+elif latest_signal == 'GO SHORT':
     bearish_signals += 1
 
 # Analyze sentiment
@@ -149,17 +145,20 @@ if fear_and_greed_index is not None:
 
 # Decision based on the count of signals, sentiment, and Fear and Greed Index
 if bullish_signals > bearish_signals:
-    decision = "BUY OPTION 🟢⬆️"
-    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
+    decision = "GO LONG 📈"
+    reason = "The model suggests a long position, sentiment is positive, and the Fear and Greed Index indicates greed."
 elif bearish_signals > bullish_signals:
-    decision = "SELL OPTION 🔴⬇️"
-    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
+    decision = "GO SHORT 📉"
+    reason = "The model suggests a short position, sentiment is negative, and the Fear and Greed Index indicates fear."
 else:
-    decision = "HOLD OPTION 🟡"
+    decision = "HOLD 🔄"
     reason = "The signals are mixed; it's best to hold the current position."
 
 st.write(f"### Decision: {decision}")
 st.write(f"**Reason:** {reason}")
+
+# Display the accuracy of the signals
+st.write(f"**Accuracy of the signals:** {accuracy:.2%}")
 
 # Display the technical indicators
 st.write('### Technical Indicators:')
@@ -167,28 +166,12 @@ st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1]
 st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
 st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
 
-# Display support and resistance levels
-st.write('### Support and Resistance Levels:')
-st.write(f"Support Level: {support:.3f}")
-st.write(f"Resistance Level: {resistance:.3f}")
-
 # Display buy/sell signals in a table
 st.write('### Buy/Sell Signals:')
 st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
 
-# Plot the price chart with support and resistance lines
-st.write('### Price Chart with Support and Resistance:')
-fig, ax = plt.subplots()
-data['Close'].plot(ax=ax, label='BTC-USD Price')
-ax.axhline(support, color='green', linestyle='--', label='Support Level')
-ax.axhline(resistance, color='red', linestyle='--', label='Resistance Level')
-plt.title('BTC-USD Price with Support and Resistance Levels')
-plt.legend()
-st.pyplot(fig)
-
-# Display the accuracy of the signals
-st.write(f'### Accuracy of the Signals:')
-st.write(f'Accuracy: {accuracy:.2%}')
+# Plot the price chart
+st.line_chart(data['Close'])
 
 # Fetch latest news from Yahoo Finance
 st.write('### Latest News:')
@@ -199,4 +182,14 @@ for article in news:
     pub_date = article.get('pubDate', 'No publication date available')
     st.write(f"**{title}**")
     st.write(f"Published on: {pub_date}")
-    st.write(f"Link: {link}")
+    st.write(f"Link: [Read more]({link})")
+    st.write("---")
+
+# Add JavaScript to auto-refresh the Streamlit app every 60 seconds
+components.html("""
+<script>
+setTimeout(function(){
+   window.location.reload();
+}, 60000);  // Refresh every 60 seconds
+</script>
+""", height=0)
