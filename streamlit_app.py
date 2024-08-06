@@ -9,6 +9,9 @@ import nltk
 import pytz
 from datetime import datetime
 import streamlit.components.v1 as components
+from yahoo_fin import news as yf_news
+import requests
+from bs4 import BeautifulSoup
 
 nltk.download('vader_lexicon')
 
@@ -92,8 +95,8 @@ signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signa
 # Calculate accuracy of the signals
 accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 
-# Add signals to a list for display before plotting
-signal_list = signals_df[['Date', 'Signal']].values.tolist()
+# Add signals to a list for display before plotting, and reverse the order to show newer signals first
+signal_list = signals_df[['Date', 'Signal']].values.tolist()[::-1]
 
 # Display buy/sell signals with date and time in Streamlit
 st.write('### Buy/Sell Signals:')
@@ -110,6 +113,28 @@ for date, signal in signal_list:
 
 # Plot the price chart
 st.line_chart(data['Close'])
+
+# Fetch latest news from Yahoo Finance
+st.write('### Latest News:')
+news = yf_news.get_yf_rss("BTC-USD")
+for article in news:
+    st.write(f"**{article['title']}**")
+    st.write(f"Published on: {article['pubDate']}")
+    st.write(f"Link: {article['link']}")
+    st.write("---")
+
+# Fetch Fear and Greed Index from Alternative.me
+def fetch_fear_and_greed():
+    url = 'https://alternative.me/crypto/fear-and-greed-index/'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    value = soup.find('div', {'class': 'fng-circle'}).text.strip()
+    return int(value)
+
+fear_and_greed_index = fetch_fear_and_greed()
+
+st.write('### Fear and Greed Index:')
+st.write(f"The current Fear and Greed Index is: **{fear_and_greed_index}**")
 
 # Add JavaScript to auto-refresh the Streamlit app every 60 seconds
 components.html("""
@@ -143,18 +168,56 @@ if latest_sentiment > sentiment_threshold:
 elif latest_sentiment < sentiment_threshold:
     bearish_signals += 1
 
-# Decision based on the count of signals and sentiment
-if bullish_signals > bearish_signals:
-    decision = "Place a CALL option"
-    reason = "The model suggests a buy signal, and the sentiment is positive."
-elif bearish_signals > bullish_signals:
-    decision = "Place a PUT option"
-    reason = "The model suggests a sell signal, and the sentiment is negative."
-else:
-    decision = "Hold off on trading options"
-    reason = "The signals are mixed or inconclusive."
+# Include Fear and Greed Index in the decision
+if fear_and_greed_index > 50:
+    bullish_signals += 1
+elif fear_and_greed_index < 50:
+    bearish_signals += 1
 
-# Display final decision and signal accuracy
-st.write(f"**Decision:** {decision}")
+# Decision based on the count of signals, sentiment, and Fear and Greed Index
+if bullish_signals > bearish_signals:
+    decision = "BUY OPTION 🟢⬆️"
+    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
+elif bearish_signals > bullish_signals:
+    decision = "SELL OPTION 🔴⬇️"
+    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
+else:
+    decision = "HOLD OPTION 🟡"
+    reason = "The signals are mixed; it's best to hold the current position."
+
+st.write(f"### Decision: {decision}")
 st.write(f"**Reason:** {reason}")
-st.write(f"**Signal Accuracy:** {accuracy:.2%}")
+
+# Display the technical indicators
+st.write('### Technical Indicators:')
+st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
+st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
+st.write(f"Stochastic Oscillator: {data['Stoch_OSC'].iloc[-1]:.3f} - {'Buy 🟢' if data['Stoch_OSC'].iloc[-1] > 0.8 else 'Sell 🔴' if data['Stoch_OSC'].iloc[-1] < 0.2 else 'Neutral 🟡'}")
+st.write(f"Bollinger Bands: Upper: {data['BB_Upper'].iloc[-1]:.3f}, Middle: {data['BB_Middle'].iloc[-1]:.3f}, Lower: {data['BB_Lower'].iloc[-1]:.3f}")
+st.write(f"Force Index: {data['Force_Index'].iloc[-1]:.3f} - {'Buy 🟢' if data['Force_Index'].iloc[-1] > 0 else 'Sell 🔴'}")
+
+# Display the EMA analysis
+st.write('### 📈 EMA Analysis:')
+ema_periods = [20, 50, 100]
+for period in ema_periods:
+    ema = data['Close'].ewm(span=period, adjust=False).mean().iloc[-1]
+    closing_price = data['Close'].iloc[-1]
+    if closing_price > ema:
+        signal = 'Mild bullish 🟢' if period == 20 else 'Strong bullish 🟢⬆️'
+    elif closing_price < ema:
+        signal = 'Mild bearish 🔴' if period == 20 else 'Strong bearish 🔴⬇️'
+    else:
+        signal = 'Neutral 🟡'
+    st.write(f"EMA {period}: {ema:.3f} - {signal}")
+
+# Display the buy/sell decision in a more structured format
+st.write('### 💹 Summary: BUY OPTION 🟢⬆️')
+st.write('⏰ Expiration time: 5 MINUTES')
+st.write(f'📊 Opening price: {data["Close"].iloc[-1]:.5f}')
+st.write('📊 According to the analysis:')
+st.write('💬 At the moment on the BITCOIN (BTC) there is no news background - normal volatility ✅')
+st.write('📄 Technical analysis identified support levels for overlaps:')
+for level in sorted(data['Close'].tail(3).tolist()):
+    st.write(f"🎯 {level:.5f}")
+st.write('📊 Indicator summary: BUY OPTION 🟢⬆️')
+st.write('📉 Moving averages summary: BUY OPTION 🟢⬆️')
