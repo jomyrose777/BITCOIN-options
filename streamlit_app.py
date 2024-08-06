@@ -118,9 +118,12 @@ st.line_chart(data['Close'])
 st.write('### Latest News:')
 news = yf_news.get_yf_rss("BTC-USD")
 for article in news:
-    st.write(f"**{article['title']}**")
-    st.write(f"Published on: {article['pubDate']}")
-    st.write(f"Link: {article['link']}")
+    title = article.get('title', 'No title available')
+    link = article.get('link', 'No link available')
+    pub_date = article.get('pubDate', 'No publication date available')
+    st.write(f"**{title}**")
+    st.write(f"Published on: {pub_date}")
+    st.write(f"Link: {link}")
     st.write("---")
 
 # Fetch Fear and Greed Index from Alternative.me
@@ -192,32 +195,4 @@ st.write(f"**Reason:** {reason}")
 st.write('### Technical Indicators:')
 st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
 st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
-st.write(f"Stochastic Oscillator: {data['Stoch_OSC'].iloc[-1]:.3f} - {'Buy 🟢' if data['Stoch_OSC'].iloc[-1] > 0.8 else 'Sell 🔴' if data['Stoch_OSC'].iloc[-1] < 0.2 else 'Neutral 🟡'}")
-st.write(f"Bollinger Bands: Upper: {data['BB_Upper'].iloc[-1]:.3f}, Middle: {data['BB_Middle'].iloc[-1]:.3f}, Lower: {data['BB_Lower'].iloc[-1]:.3f}")
-st.write(f"Force Index: {data['Force_Index'].iloc[-1]:.3f} - {'Buy 🟢' if data['Force_Index'].iloc[-1] > 0 else 'Sell 🔴'}")
-
-# Display the EMA analysis
-st.write('### 📈 EMA Analysis:')
-ema_periods = [20, 50, 100]
-for period in ema_periods:
-    ema = data['Close'].ewm(span=period, adjust=False).mean().iloc[-1]
-    closing_price = data['Close'].iloc[-1]
-    if closing_price > ema:
-        signal = 'Mild bullish 🟢' if period == 20 else 'Strong bullish 🟢⬆️'
-    elif closing_price < ema:
-        signal = 'Mild bearish 🔴' if period == 20 else 'Strong bearish 🔴⬇️'
-    else:
-        signal = 'Neutral 🟡'
-    st.write(f"EMA {period}: {ema:.3f} - {signal}")
-
-# Display the buy/sell decision in a more structured format
-st.write('### 💹 Summary: BUY OPTION 🟢⬆️')
-st.write('⏰ Expiration time: 5 MINUTES')
-st.write(f'📊 Opening price: {data["Close"].iloc[-1]:.5f}')
-st.write('📊 According to the analysis:')
-st.write('💬 At the moment on the BITCOIN (BTC) there is no news background - normal volatility ✅')
-st.write('📄 Technical analysis identified support levels for overlaps:')
-for level in sorted(data['Close'].tail(3).tolist()):
-    st.write(f"🎯 {level:.5f}")
-st.write('📊 Indicator summary: BUY OPTION 🟢⬆️')
-st.write('📉 Moving averages summary: BUY OPTION 🟢⬆️')
+st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
