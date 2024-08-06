@@ -12,6 +12,7 @@ import streamlit.components.v1 as components
 from yahoo_fin import news as yf_news
 import requests
 from bs4 import BeautifulSoup
+import matplotlib.pyplot as plt
 
 nltk.download('vader_lexicon')
 
@@ -177,8 +178,6 @@ st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
 
 # Plot the price chart with support and resistance lines
 st.write('### Price Chart with Support and Resistance:')
-import matplotlib.pyplot as plt
-
 fig, ax = plt.subplots()
 data['Close'].plot(ax=ax, label='BTC-USD Price')
 ax.axhline(support, color='green', linestyle='--', label='Support Level')
@@ -186,6 +185,10 @@ ax.axhline(resistance, color='red', linestyle='--', label='Resistance Level')
 plt.title('BTC-USD Price with Support and Resistance Levels')
 plt.legend()
 st.pyplot(fig)
+
+# Display the accuracy of the signals
+st.write(f'### Accuracy of the Signals:')
+st.write(f'Accuracy: {accuracy:.2%}')
 
 # Fetch latest news from Yahoo Finance
 st.write('### Latest News:')
@@ -196,14 +199,4 @@ for article in news:
     pub_date = article.get('pubDate', 'No publication date available')
     st.write(f"**{title}**")
     st.write(f"Published on: {pub_date}")
-    st.write(f"Link: {link}")
-    st.write("---")
-
-# Add JavaScript to auto-refresh the Streamlit app every 60 seconds
-components.html("""
-<script>
-setTimeout(function(){
-   window.location.reload();
-}, 60000);  // Refresh every 60 seconds
-</script>
-""", height=0)
+    st.write(f"
