@@ -148,29 +148,34 @@ if fear_and_greed_index is not None:
     elif fear_and_greed_index < 50:
         bearish_signals += 1
 
+# ... (rest of the code remains the same)
+
 # Decision based on the count of signals, sentiment, and Fear and Greed Index
 if bullish_signals > bearish_signals:
-    decision = "GO LONG 📈"
-    reason = "The model suggests a long position, sentiment is positive, and the Fear and Greed Index indicates greed."
+    decision = "GO LONG 🟢⬆️"
+    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
+    stop_loss = support
 elif bearish_signals > bullish_signals:
-    decision = "GO SHORT 📉"
-    reason = "The model suggests a short position, sentiment is negative, and the Fear and Greed Index indicates fear."
+    decision = "GO SHORT 🔴⬇️"
+    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
+    stop_loss = resistance
 else:
-    decision = "HOLD 🔄"
+    decision = "HOLD OPTION 🟡"
     reason = "The signals are mixed; it's best to hold the current position."
+    stop_loss = None
+
+# Day trading decision
+if data['RSI'].iloc[-1] < 30 and data['MACD'].iloc[-1] > 0:
+    day_trading_decision = "BUY FOR DAY TRADING 🟢"
+elif data['RSI'].iloc[-1] > 70 and data['MACD'].iloc[-1] < 0:
+    day_trading_decision = "SELL FOR DAY TRADING 🔴"
+else:
+    day_trading_decision = "HOLD FOR DAY TRADING 🟡"
 
 st.write(f"### Decision: {decision}")
 st.write(f"**Reason:** {reason}")
-
-# Display the accuracy of the signals
-st.write(f"**Accuracy of the signals:** {accuracy:.2%}")
-
-# Display the technical indicators
-st.write('### Technical Indicators:')
-st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
-st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
-st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
-
+st.write(f"**Stop Loss:** {stop_loss:.3f}")
+st.write(f"### Day Trading Decision: {day_trading_decision}")
 # Display buy/sell signals in a table
 st.write('### Buy/Sell Signals:')
 st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
