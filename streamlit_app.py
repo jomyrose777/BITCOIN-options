@@ -95,21 +95,62 @@ signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signa
 # Calculate accuracy of the signals
 accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 
-# Add signals to a list for display before plotting, and reverse the order to show newer signals first
-signal_list = signals_df[['Date', 'Signal']].values.tolist()[::-1]
+# Sort signals to show the latest first
+signals_df = signals_df.sort_values(by='Date', ascending=False)
 
-# Display buy/sell signals with date and time in Streamlit
+# Display decision section at the top
+st.write('### Final Decision:')
+
+# Initialize counters for bullish and bearish signals
+bullish_signals = 0
+bearish_signals = 0
+
+# Check the latest signal and sentiment
+latest_signal = signals_df.iloc[0]['Signal']
+latest_sentiment = data['Sentiment'].iloc[-1]
+
+# Count signals
+if latest_signal == 'BUY':
+    bullish_signals += 1
+elif latest_signal == 'SELL':
+    bearish_signals += 1
+
+# Analyze sentiment
+if latest_sentiment > sentiment_threshold:
+    bullish_signals += 1
+elif latest_sentiment < sentiment_threshold:
+    bearish_signals += 1
+
+# Include Fear and Greed Index in the decision
+fear_and_greed_index = fetch_fear_and_greed()
+if fear_and_greed_index > 50:
+    bullish_signals += 1
+elif fear_and_greed_index < 50:
+    bearish_signals += 1
+
+# Decision based on the count of signals, sentiment, and Fear and Greed Index
+if bullish_signals > bearish_signals:
+    decision = "BUY OPTION 🟢⬆️"
+    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
+elif bearish_signals > bullish_signals:
+    decision = "SELL OPTION 🔴⬇️"
+    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
+else:
+    decision = "HOLD OPTION 🟡"
+    reason = "The signals are mixed; it's best to hold the current position."
+
+st.write(f"### Decision: {decision}")
+st.write(f"**Reason:** {reason}")
+
+# Display the technical indicators
+st.write('### Technical Indicators:')
+st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
+st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
+st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
+
+# Display buy/sell signals in a table
 st.write('### Buy/Sell Signals:')
-for date, signal in signal_list:
-    formatted_date = date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
-    st.write(f"{formatted_date} - **{signal}**")
-
-    if signal == 'BUY':
-        # Predict the next significant move to determine holding time
-        hold_time = np.random.randint(1, 5)  # Placeholder for actual logic
-        sell_date = date + pd.Timedelta(minutes=hold_time * 60)  # Assuming holding period in hours
-        formatted_sell_date = sell_date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
-        st.write(f"Suggested Hold Until: **{formatted_sell_date}**")
+st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
 
 # Plot the price chart
 st.line_chart(data['Close'])
@@ -147,52 +188,3 @@ setTimeout(function(){
 }, 60000);  // Refresh every 60 seconds
 </script>
 """, height=0)
-
-# Final decision on option strategy
-st.write('### Final Decision:')
-
-# Initialize counters for bullish and bearish signals
-bullish_signals = 0
-bearish_signals = 0
-
-# Check the latest signal and sentiment
-latest_signal = signals_df.iloc[-1]['Signal']
-latest_sentiment = data['Sentiment'].iloc[-1]
-
-# Count signals
-if latest_signal == 'BUY':
-    bullish_signals += 1
-elif latest_signal == 'SELL':
-    bearish_signals += 1
-
-# Analyze sentiment
-if latest_sentiment > sentiment_threshold:
-    bullish_signals += 1
-elif latest_sentiment < sentiment_threshold:
-    bearish_signals += 1
-
-# Include Fear and Greed Index in the decision
-if fear_and_greed_index > 50:
-    bullish_signals += 1
-elif fear_and_greed_index < 50:
-    bearish_signals += 1
-
-# Decision based on the count of signals, sentiment, and Fear and Greed Index
-if bullish_signals > bearish_signals:
-    decision = "BUY OPTION 🟢⬆️"
-    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
-elif bearish_signals > bullish_signals:
-    decision = "SELL OPTION 🔴⬇️"
-    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
-else:
-    decision = "HOLD OPTION 🟡"
-    reason = "The signals are mixed; it's best to hold the current position."
-
-st.write(f"### Decision: {decision}")
-st.write(f"**Reason:** {reason}")
-
-# Display the technical indicators
-st.write('### Technical Indicators:')
-st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
-st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
-st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
