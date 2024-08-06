@@ -99,20 +99,18 @@ accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 signal_list = signals_df[['Date', 'Signal']].values.tolist()
 
 # Display buy/sell signals with date and time in Streamlit
-st.write('### Buy/Sell Signals:')
+st.write('### Current Signals:')
 for date, signal in reversed(signal_list):  # Show newer signals first
     formatted_date = date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
-    st.write(f"{formatted_date} - **{signal}**")
+    st.write(f"**Timestamp:** {formatted_date}")
+    st.write(f"**Signal:** {signal}")
 
     if signal == 'BUY':
         # Predict the next significant move to determine holding time
         hold_time = np.random.randint(1, 5)  # Placeholder for actual logic
         sell_date = date + pd.Timedelta(minutes=hold_time * 60)  # Assuming holding period in hours
         formatted_sell_date = sell_date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
-        st.write(f"Suggested Hold Until: **{formatted_sell_date}**")
-
-# Plot the price chart
-st.line_chart(data['Close'])
+        st.write(f"**Suggested Hold Until:** {formatted_sell_date}")
 
 # Add JavaScript to auto-refresh the Streamlit app every 60 seconds
 components.html("""
@@ -143,8 +141,8 @@ try:
     soup = BeautifulSoup(response.text, 'html.parser')
     fear_greed_index = soup.find('div', class_='fng-circle').text.strip()
     fear_greed_description = soup.find('div', class_='fng-description').text.strip()
-    st.write(f"Index: {fear_greed_index}")
-    st.write(f"Description: {fear_greed_description}")
+    st.write(f"**Index:** {fear_greed_index}")
+    st.write(f"**Description:** {fear_greed_description}")
 except Exception as e:
     st.write("Error fetching Fear and Greed Index:", e)
 
@@ -173,17 +171,39 @@ elif latest_sentiment < sentiment_threshold:
 
 # Decision based on the count of signals and sentiment
 if bullish_signals > bearish_signals:
-    decision = "Place a CALL option"
+    decision = "Buy 🟢"
     reason = "The model suggests a buy signal, and the sentiment is positive."
 elif bearish_signals > bullish_signals:
-    decision = "Place a PUT option"
+    decision = "Sell 🔴"
     reason = "The model suggests a sell signal, and the sentiment is negative."
 else:
     decision = "Hold off on trading options"
     reason = "The signals are mixed or inconclusive."
 
 # Display final decision and signal accuracy
-st.write(f"**Decision:** {decision}")
+st.write(f"**Suggestion:** {decision}")
 st.write(f"**Reason:** {reason}")
 st.write(f"**Signal Accuracy:** {accuracy:.2%}")
 
+# Add technical indicators display
+st.write('### Technical Indicators:')
+
+# Example of displaying indicators - replace with your actual indicator calculations
+st.write('**Support Levels:**')
+st.write('49778.30')
+
+st.write('**Resistance Levels:**')
+st.write('50050.30, 50093.25')
+
+st.write('**Technical Indicators:**')
+st.write('RSI: 0.000 - Buy 🟢')
+st.write('STOCH: 0.765 - Buy 🟢')
+st.write('MACD: 3.980 - Buy 🟢')
+st.write('ADX: -0.000 - Neutral 🟡')
+st.write('CCI: -0.000 - Neutral 🟡')
+st.write('BULLBEAR: 0.000 - Neutral 🟡')
+st.write('UO: 0.000 - Neutral 🟡')
+st.write('ROC: -0.000 - Sell 🔴')
+st.write('WILLIAMSR: 0.306 - Buy 🟢')
+
+st.write('**Moving Averages:**')
