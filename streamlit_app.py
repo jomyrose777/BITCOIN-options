@@ -96,6 +96,31 @@ def fetch_fear_and_greed():
 
 fear_and_greed_index = fetch_fear_and_greed()
 
+# Display the title
+st.title('BTC-Derivatives Technical Analysis')
+
+# Plot the price chart with support and resistance
+st.write('### Bitcoin Price Chart with Support and Resistance')
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(data['Close'], label='Close')
+ax.plot(data['BB_Middle'], label='BB Middle')
+ax.plot(data['BB_Upper'], label='BB Upper', linestyle='--')
+ax.plot(data['BB_Lower'], label='BB Lower', linestyle='--')
+ax.set_title('Bitcoin Price Chart with Support and Resistance')
+ax.set_xlabel('Time')
+ax.set_ylabel('Price')
+ax.legend(loc='upper left')
+st.pyplot(fig)
+
+# Plot the 1-hour chart
+st.write('### 1-Hour Bitcoin Price Chart')
+fig, ax = plt.subplots(figsize=(12, 6))
+ax.plot(data['Close'].resample('1h').mean())
+ax.set_title('1-Hour Bitcoin Price Chart')
+ax.set_xlabel('Time')
+ax.set_ylabel('Price')
+st.pyplot(fig)
+
 # Display decision section
 st.write('### Final Decision:')
 
@@ -132,25 +157,25 @@ resistance = data['BB_Upper'].iloc[-1]
 
 # Decision based on the count of signals, sentiment, and Fear and Greed Index
 if bullish_signals > bearish_signals:
-    decision = "GO LONG 🟢⬆️"
+    decision = "GO LONG "
     reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
     stop_loss = support
 elif bearish_signals > bullish_signals:
-    decision = "GO SHORT 🔴⬇️"
+    decision = "GO SHORT "
     reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
     stop_loss = resistance
 else:
-    decision = "HOLD OPTION 🟡"
+    decision = "HOLD OPTION "
     reason = "The signals are mixed; it's best to hold the current position."
     stop_loss = None
 
 # Day trading decision
 if data['RSI'].iloc[-1] < 30 and data['MACD'].iloc[-1] > 0:
-    day_trading_decision = "BUY FOR DAY TRADING 🟢"
+    day_trading_decision = "BUY FOR DAY TRADING "
 elif data['RSI'].iloc[-1] > 70 and data['MACD'].iloc[-1] < 0:
-    day_trading_decision = "SELL FOR DAY TRADING 🔴"
+    day_trading_decision = "SELL FOR DAY TRADING "
 else:
-    day_trading_decision = "HOLD FOR DAY TRADING 🟡"
+    day_trading_decision = "HOLD FOR DAY TRADING "
 
 st.write(f"### Decision: {decision}")
 st.write(f"**Reason:** {reason}")
@@ -161,9 +186,6 @@ st.write(f"### Day Trading Decision: {day_trading_decision}")
 # Display buy/sell signals in a table
 st.write('### Buy/Sell Signals:')
 st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
-
-# Plot the price chart
-st.line_chart(data['Close'])
 
 # Fetch latest news using BeautifulSoup
 st.write('### Latest News:')
