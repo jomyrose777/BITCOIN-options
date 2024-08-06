@@ -9,4 +9,4 @@ requests
 beautifulsoup4
 yahoo_fin
 matplotlib
-r requirements
+r
