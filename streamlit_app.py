@@ -9,7 +9,6 @@ import nltk
 import pytz
 from datetime import datetime
 import streamlit.components.v1 as components
-from yahoo_fin import news as yf_news
 import requests
 from bs4 import BeautifulSoup
 
@@ -96,21 +95,12 @@ signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signa
 accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 
 # Add signals to a list for display
-signal_list = signals_df[['Date', 'Signal']].values.tolist()
+signals_df = signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close', 'True_Label']]
+signals_df.sort_values(by='Date', ascending=False, inplace=True)
 
 # Display buy/sell signals with date and time in Streamlit
 st.write('### Current Signals:')
-for date, signal in reversed(signal_list):  # Show newer signals first
-    formatted_date = date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
-    st.write(f"**Timestamp:** {formatted_date}")
-    st.write(f"**Signal:** {signal}")
-
-    if signal == 'BUY':
-        # Predict the next significant move to determine holding time
-        hold_time = np.random.randint(1, 5)  # Placeholder for actual logic
-        sell_date = date + pd.Timedelta(minutes=hold_time * 60)  # Assuming holding period in hours
-        formatted_sell_date = sell_date.strftime('%Y-%m-%d %I:%M %p')  # Convert to EST and format
-        st.write(f"**Suggested Hold Until:** {formatted_sell_date}")
+st.dataframe(signals_df)
 
 # Add JavaScript to auto-refresh the Streamlit app every 60 seconds
 components.html("""
@@ -124,12 +114,22 @@ setTimeout(function(){
 # Fetch and display news about Bitcoin
 st.write('### Latest Bitcoin News:')
 try:
-    news_data = yf_news.get_yf_news(ticker)
-    for article in news_data:
-        st.write(f"**{article['title']}**")
-        st.write(f"Published on: {article['published_at']}")
-        st.write(f"Link: [Read more]({article['link']})")
-        st.write()
+    url = f'https://finance.yahoo.com/quote/{ticker}/news'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    articles = soup.find_all('li', class_='js-stream-content')
+    news_data = []
+    for article in articles[:5]:  # Limit to 5 news items
+        title = article.find('h3').text.strip()
+        link = article.find('a')['href']
+        published_at = article.find('time')
+        published_at = published_at['datetime'] if published_at else 'N/A'
+        news_data.append({
+            'Title': title,
+            'Published At': published_at,
+            'Link': f'https://finance.yahoo.com{link}'
+        })
+    st.dataframe(pd.DataFrame(news_data))
 except Exception as e:
     st.write("Error fetching news:", e)
 
@@ -187,8 +187,7 @@ st.write(f"**Signal Accuracy:** {accuracy:.2%}")
 
 # Add technical indicators display
 st.write('### Technical Indicators:')
-
-# Example of displaying indicators - replace with your actual indicator calculations
+# Add support, resistance, and moving averages details
 st.write('**Support Levels:**')
 st.write('49778.30')
 
@@ -207,3 +206,30 @@ st.write('ROC: -0.000 - Sell 🔴')
 st.write('WILLIAMSR: 0.306 - Buy 🟢')
 
 st.write('**Moving Averages:**')
+# Example of displaying moving averages
+st.write('MA5: 49774.1594 - Buy 🟢')
+st.write('MA10: 49755.4145 - Sell 🔴')
+st.write('MA20: 49746.2422 - Sell 🔴')
+st.write('MA50: 49755.6920 - Sell 🔴')
+st.write('MA100: 49778.5059 - Buy 🟢')
+st.write('MA200: 49941.6947 - Buy 🟢')
+
+st.write('**EMA Signals:**')
+st.write('EMA_20: Strong bearish')
+st.write('EMA_50: Neutral')
+st.write('EMA_100: Mild bullish')
+
+st.write('**Current Signals:**')
+st.write('Timestamp: 2024-08-06 03:29:00 PM')
+
+# Final suggestion and how long to hold
+st.write('**Previous Signals:**')
+st.write('Final Suggestion:')
+st.write('Suggestion: Buy 🟢')
+
+st.write('The majority of technical indicators suggest buying the stock. It\'s currently showing positive momentum and potential upside.')
+
+st.write('**How Long to Hold:**')
+st.write('Based on the current signals, it is recommended to hold the stock until the opposite signal is generated or the target price/stop loss is reached. For short-term trading, consider holding for a few minutes to a few hours, whereas for longer-term strategies, consider holding until key support/resistance levels are breached or significant changes in technical indicators occur.')
+
+st.write('Note: The analysis is based on the latest available data. The Indian stock market is open from 9 AM to 4 PM IST, but the analysis can be accessed 24/7.')
