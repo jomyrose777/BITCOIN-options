@@ -200,6 +200,9 @@ setTimeout(function(){
 </script>
 """, height=0)
 
+
+# ... (rest of the code remains the same)
+
 # Plot the price chart with support and resistance
 st.write('### Bitcoin Price Chart with Support and Resistance')
 fig, ax = plt.subplots(figsize=(12, 6))
@@ -221,3 +224,33 @@ ax.set_title('1-Hour Bitcoin Price Chart')
 ax.set_xlabel('Time')
 ax.set_ylabel('Price')
 st.pyplot(fig)
+
+# Display decision section
+st.write('### Final Decision:')
+st.write(f"### Decision: {decision}")
+st.write(f"**Reason:** {reason}")
+if stop_loss is not None:
+    st.write(f"**Stop Loss:** {stop_loss:.3f}")
+st.write(f"### Day Trading Decision: {day_trading_decision}")
+
+# Display buy/sell signals in a table
+st.write('### Buy/Sell Signals:')
+st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
+
+# Fetch latest news using BeautifulSoup
+st.write('### Latest News:')
+try:
+    url = 'https://www.coindesk.com/feed/'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'xml')
+    articles = soup.find_all('item')
+    for article in articles[:5]:  # Limit to latest 5 news items
+        title = article.title.text
+        link = article.link.text
+        pub_date = article.pubDate.text
+        st.write(f"**{title}**")
+        st.write(f"Published on: {pub_date}")
+        st.write(f"Link: [Read more]({link})")
+        st.write("---")
+except Exception as e:
+    st.error(f"Error fetching latest news: {e}")
