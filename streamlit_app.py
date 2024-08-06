@@ -12,8 +12,6 @@ import streamlit.components.v1 as components
 from yahoo_fin import news as yf_news
 import requests
 from bs4 import BeautifulSoup
-import matplotlib.pyplot as plt
-import os
 
 # Ensure vader_lexicon is available
 nltk.download('vader_lexicon', download_dir=os.path.expanduser('~/.nltk_data'))
@@ -31,39 +29,50 @@ est = pytz.timezone('America/New_York')
 def to_est(dt):
     return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
-# Fetch live data from Yahoo Finance
-data = yf.download(ticker, period='1d', interval='1m')
+@st.cache
+def fetch_data(ticker):
+    # Fetch live data from Yahoo Finance
+    data = yf.download(ticker, period='1d', interval='1m')
+    if data.index.tzinfo is None:
+        data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
+    else:
+        data.index = data.index.tz_convert(est)
+    return data
 
-# Convert index to EST if it's not already timezone-aware
-if data.index.tzinfo is None:
-    data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
-else:
-    data.index = data.index.tz_convert(est)
+data = fetch_data(ticker)
 
-# Calculate technical indicators
-data['RSI'] = data['Close'].rolling(window=14).apply(lambda x: (x/x.shift(1)-1).mean())
-data['BB_Middle'] = data['Close'].rolling(window=20).mean()
-data['BB_Upper'] = data['BB_Middle'] + 2 * data['Close'].rolling(window=20).std()
-data['BB_Lower'] = data['BB_Middle'] - 2 * data['Close'].rolling(window=20).std()
-data['MACD'] = data['Close'].ewm(span=12, adjust=False).mean() - data['Close'].ewm(span=26, adjust=False).mean()
-data['Stoch_OSC'] = (data['Close'] - data['Close'].rolling(window=14).min()) / (data['Close'].rolling(window=14).max() - data['Close'].rolling(window=14).min())
-data['Force_Index'] = data['Close'].diff() * data['Volume']
+@st.cache
+def calculate_indicators(data):
+    # Calculate technical indicators
+    data['RSI'] = data['Close'].rolling(window=14).apply(lambda x: (x/x.shift(1)-1).mean())
+    data['BB_Middle'] = data['Close'].rolling(window=20).mean()
+    data['BB_Upper'] = data['BB_Middle'] + 2 * data['Close'].rolling(window=20).std()
+    data['BB_Lower'] = data['BB_Middle'] - 2 * data['Close'].rolling(window=20).std()
+    data['MACD'] = data['Close'].ewm(span=12, adjust=False).mean() - data['Close'].ewm(span=26, adjust=False).mean()
+    data['Stoch_OSC'] = (data['Close'] - data['Close'].rolling(window=14).min()) / (data['Close'].rolling(window=14).max() - data['Close'].rolling(window=14).min())
+    data['Force_Index'] = data['Close'].diff() * data['Volume']
+    data['Sentiment'] = data['Close'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
+    data.dropna(inplace=True)
+    return data
 
-# Perform sentiment analysis using nltk
-data['Sentiment'] = data['Close'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
+data = calculate_indicators(data)
 
-# Drop rows with NaN values
-data.dropna(inplace=True)
+@st.cache
+def prepare_data(data):
+    # Prepare data for model training
+    X = pd.concat([data['Close'], data['RSI'], data['BB_Middle'], data['BB_Upper'], data['BB_Lower'], data['MACD'], data['Stoch_OSC'], data['Force_Index'], data['Sentiment']], axis=1)
+    y = data['Close'].shift(-1).dropna()
+    X = X.iloc[:len(y)]  # Ensure X and y have the same number of rows
+    return train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Define machine learning model using scikit-learn
-X = pd.concat([data['Close'], data['RSI'], data['BB_Middle'], data['BB_Upper'], data['BB_Lower'], data['MACD'], data['Stoch_OSC'], data['Force_Index'], data['Sentiment']], axis=1)
-y = data['Close'].shift(-1).dropna()
+X_train, X_test, y_train, y_test = prepare_data(data)
 
-# Align X and y
-X = X.iloc[:len(y)]  # Ensure X and y have the same number of rows
-
-# Split data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+@st.cache
+def train_model(X_train, y_train, n_estimators):
+    # Train the model
+    model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
+    model.fit(X_train, y_train)
+    return model
 
 # Define customizable parameters using streamlit
 st.title('Bitcoin Model with Advanced Features')
@@ -73,37 +82,30 @@ rsi_period = st.slider('RSI period', 1, 100, 14)
 bb_period = st.slider('BB period', 1, 100, 20)
 sentiment_threshold = st.slider('Sentiment threshold', -1.0, 1.0, 0.0)
 
-# Train the model
-model = RandomForestRegressor(n_estimators=n_estimators, random_state=42)
-model.fit(X_train, y_train)
+model = train_model(X_train, y_train, n_estimators)
 
-# Generate predictions
-predictions = model.predict(X_test)
+@st.cache
+def generate_signals(model, X_test):
+    # Generate predictions
+    predictions = model.predict(X_test)
+    buy_sell_signals = np.where(predictions > X_test['Close'], 'GO LONG', 'GO SHORT')
 
-# Generate buy/sell signals based on predictions
-buy_sell_signals = np.where(predictions > X_test['Close'], 'GO LONG', 'GO SHORT')
+    # Create a DataFrame for the signals
+    signals_df = pd.DataFrame({
+        'Date': X_test.index,
+        'Signal': buy_sell_signals,
+        'Actual_Close': y_test,
+        'Predicted_Close': predictions
+    })
+    signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
+    signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signals_df['Actual_Close'], 'GO LONG', 'GO SHORT')
+    accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
+    signals_df = signals_df.sort_values(by='Date', ascending=False)
+    return signals_df, accuracy
 
-# Create a DataFrame for the signals
-signals_df = pd.DataFrame({
-    'Date': X_test.index,
-    'Signal': buy_sell_signals,
-    'Actual_Close': y_test,
-    'Predicted_Close': predictions
-})
+signals_df, accuracy = generate_signals(model, X_test)
 
-# Convert 'Date' column to EST timezone
-signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
-
-# Create true labels based on actual market movement
-signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signals_df['Actual_Close'], 'GO LONG', 'GO SHORT')
-
-# Calculate accuracy of the signals
-accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
-
-# Sort signals to show the latest first
-signals_df = signals_df.sort_values(by='Date', ascending=False)
-
-# Fetch Fear and Greed Index from Alternative.me
+@st.cache
 def fetch_fear_and_greed():
     try:
         url = 'https://alternative.me/crypto/fear-and-greed-index/'
