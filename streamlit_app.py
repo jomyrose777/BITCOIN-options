@@ -15,9 +15,8 @@ from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import os
 
-# Check if 'vader_lexicon' is already downloaded
-if not os.path.exists(nltk.data.find('vader_lexicon.zip').path):
-nltk.download('vader_lexicon', download_dir=os.path.expanduser('~/.nltk_data'))
+# Download NLTK data for sentiment analysis
+nltk.download('vader_lexicon')
 
 # Initialize SentimentIntensityAnalyzer
 sia = SentimentIntensityAnalyzer()
