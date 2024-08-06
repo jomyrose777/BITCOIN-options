@@ -199,4 +199,4 @@ for article in news:
     pub_date = article.get('pubDate', 'No publication date available')
     st.write(f"**{title}**")
     st.write(f"Published on: {pub_date}")
-    st.write(f"
+    st.write(f"Link: {link}")
