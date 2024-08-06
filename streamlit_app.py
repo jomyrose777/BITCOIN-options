@@ -14,6 +14,14 @@ import requests
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
 import os
+import os
+import nltk
+
+nltk_data_dir = nltk.data.path[0]
+vader_lexicon_path = os.path.join(nltk_data_dir, 'vader_lexicon', 'vader_lexicon.zip')
+
+if not os.path.exists(vader_lexicon_path):
+    nltk.download('vader_lexicon')
 
 # Check if 'vader_lexicon' is already downloaded
 if not os.path.exists(nltk.data.find('vader_lexicon.zip').path):
