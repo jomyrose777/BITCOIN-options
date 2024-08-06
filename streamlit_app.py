@@ -9,6 +9,7 @@ import nltk
 import pytz
 from datetime import datetime
 import streamlit.components.v1 as components
+from yahoo_fin import news as yf_news
 import requests
 from bs4 import BeautifulSoup
 
@@ -59,7 +60,7 @@ X = X.iloc[:len(y)]  # Ensure X and y have the same number of rows
 # Split data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Define customizable parameters using streamlit
+# Define customizable parameters using Streamlit
 st.title('Bitcoin Model with Advanced Features')
 st.write('Select parameters:')
 n_estimators = st.slider('n_estimators', 1, 100, 50)
@@ -94,13 +95,34 @@ signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signa
 # Calculate accuracy of the signals
 accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
 
-# Add signals to a list for display
-signals_df = signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close', 'True_Label']]
-signals_df.sort_values(by='Date', ascending=False, inplace=True)
+# Display buy/sell signals in table format
+st.write('### Buy/Sell Signals:')
+st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close', 'True_Label']])
 
-# Display buy/sell signals with date and time in Streamlit
-st.write('### Current Signals:')
-st.dataframe(signals_df)
+# Plot the price chart
+st.line_chart(data['Close'])
+
+# Fetch latest news from Yahoo Finance
+st.write('### Latest News:')
+news = yf_news.get_yf_rss("BTC-USD")
+for article in news:
+    st.write(f"**{article['title']}**")
+    st.write(f"Published on: {article['pubDate']}")
+    st.write(f"Link: {article['link']}")
+    st.write("---")
+
+# Fetch Fear and Greed Index from Alternative.me
+def fetch_fear_and_greed():
+    url = 'https://alternative.me/crypto/fear-and-greed-index/'
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
+    value = soup.find('div', {'class': 'fng-circle'}).text.strip()
+    return int(value)
+
+fear_and_greed_index = fetch_fear_and_greed()
+
+st.write('### Fear and Greed Index:')
+st.write(f"The current Fear and Greed Index is: **{fear_and_greed_index}**")
 
 # Add JavaScript to auto-refresh the Streamlit app every 60 seconds
 components.html("""
@@ -110,41 +132,6 @@ setTimeout(function(){
 }, 60000);  // Refresh every 60 seconds
 </script>
 """, height=0)
-
-# Fetch and display news about Bitcoin
-st.write('### Latest Bitcoin News:')
-try:
-    url = f'https://finance.yahoo.com/quote/{ticker}/news'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    articles = soup.find_all('li', class_='js-stream-content')
-    news_data = []
-    for article in articles[:5]:  # Limit to 5 news items
-        title = article.find('h3').text.strip()
-        link = article.find('a')['href']
-        published_at = article.find('time')
-        published_at = published_at['datetime'] if published_at else 'N/A'
-        news_data.append({
-            'Title': title,
-            'Published At': published_at,
-            'Link': f'https://finance.yahoo.com{link}'
-        })
-    st.dataframe(pd.DataFrame(news_data))
-except Exception as e:
-    st.write("Error fetching news:", e)
-
-# Fetch and display Fear and Greed Index
-st.write('### Fear and Greed Index:')
-try:
-    url = 'https://alternative.me/crypto/fear-and-greed-index/'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    fear_greed_index = soup.find('div', class_='fng-circle').text.strip()
-    fear_greed_description = soup.find('div', class_='fng-description').text.strip()
-    st.write(f"**Index:** {fear_greed_index}")
-    st.write(f"**Description:** {fear_greed_description}")
-except Exception as e:
-    st.write("Error fetching Fear and Greed Index:", e)
 
 # Final decision on option strategy
 st.write('### Final Decision:')
@@ -169,67 +156,30 @@ if latest_sentiment > sentiment_threshold:
 elif latest_sentiment < sentiment_threshold:
     bearish_signals += 1
 
-# Decision based on the count of signals and sentiment
-if bullish_signals > bearish_signals:
-    decision = "Buy 🟢"
-    reason = "The model suggests a buy signal, and the sentiment is positive."
-elif bearish_signals > bullish_signals:
-    decision = "Sell 🔴"
-    reason = "The model suggests a sell signal, and the sentiment is negative."
-else:
-    decision = "Hold off on trading options"
-    reason = "The signals are mixed or inconclusive."
+# Include Fear and Greed Index in the decision
+if fear_and_greed_index > 50:
+    bullish_signals += 1
+elif fear_and_greed_index < 50:
+    bearish_signals += 1
 
-# Display final decision and signal accuracy
-st.write(f"**Suggestion:** {decision}")
+# Decision based on the count of signals, sentiment, and Fear and Greed Index
+if bullish_signals > bearish_signals:
+    decision = "BUY OPTION 🟢⬆️"
+    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
+elif bearish_signals > bullish_signals:
+    decision = "SELL OPTION 🔴⬇️"
+    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
+else:
+    decision = "HOLD OPTION 🟡"
+    reason = "The signals are mixed; it's best to hold the current position."
+
+st.write(f"### Decision: {decision}")
 st.write(f"**Reason:** {reason}")
 st.write(f"**Signal Accuracy:** {accuracy:.2%}")
 
-# Add technical indicators display
+# Display the technical indicators
 st.write('### Technical Indicators:')
-# Add support, resistance, and moving averages details
-st.write('**Support Levels:**')
-st.write('49778.30')
-
-st.write('**Resistance Levels:**')
-st.write('50050.30, 50093.25')
-
-st.write('**Technical Indicators:**')
-st.write('RSI: 0.000 - Buy 🟢')
-st.write('STOCH: 0.765 - Buy 🟢')
-st.write('MACD: 3.980 - Buy 🟢')
-st.write('ADX: -0.000 - Neutral 🟡')
-st.write('CCI: -0.000 - Neutral 🟡')
-st.write('BULLBEAR: 0.000 - Neutral 🟡')
-st.write('UO: 0.000 - Neutral 🟡')
-st.write('ROC: -0.000 - Sell 🔴')
-st.write('WILLIAMSR: 0.306 - Buy 🟢')
-
-st.write('**Moving Averages:**')
-# Example of displaying moving averages
-st.write('MA5: 49774.1594 - Buy 🟢')
-st.write('MA10: 49755.4145 - Sell 🔴')
-st.write('MA20: 49746.2422 - Sell 🔴')
-st.write('MA50: 49755.6920 - Sell 🔴')
-st.write('MA100: 49778.5059 - Buy 🟢')
-st.write('MA200: 49941.6947 - Buy 🟢')
-
-st.write('**EMA Signals:**')
-st.write('EMA_20: Strong bearish')
-st.write('EMA_50: Neutral')
-st.write('EMA_100: Mild bullish')
-
-st.write('**Current Signals:**')
-st.write('Timestamp: 2024-08-06 03:29:00 PM')
-
-# Final suggestion and how long to hold
-st.write('**Previous Signals:**')
-st.write('Final Suggestion:')
-st.write('Suggestion: Buy 🟢')
-
-st.write('The majority of technical indicators suggest buying the stock. It\'s currently showing positive momentum and potential upside.')
-
-st.write('**How Long to Hold:**')
-st.write('Based on the current signals, it is recommended to hold the stock until the opposite signal is generated or the target price/stop loss is reached. For short-term trading, consider holding for a few minutes to a few hours, whereas for longer-term strategies, consider holding until key support/resistance levels are breached or significant changes in technical indicators occur.')
-
-st.write('Note: The analysis is based on the latest available data. The Indian stock market is open from 9 AM to 4 PM IST, but the analysis can be accessed 24/7.')
+st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1] < 30 else 'Sell 🔴' if data['RSI'].iloc[-1] > 70 else 'Neutral 🟡'}")
+st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴' if data['MACD'].iloc[-1] < 0 else 'Neutral 🟡'}")
+st.write(f"Stochastic Oscillator: {data['Stoch_OSC'].iloc[-1]:.3f} - {'Buy 🟢' if data['Stoch_OSC'].iloc[-1] < 0.2 else 'Sell 🔴' if data['Stoch_OSC'].iloc[-1] > 0.8 else 'Neutral 🟡'}")
+st.write(f"Force Index: {data['Force_Index'].iloc[-1]:.3f} - {'Buy 🟢' if data['Force_Index'].iloc[-1] > 0 else 'Sell 🔴' if data['Force_Index'].iloc[-1] < 0 else 'Neutral 🟡'}")
