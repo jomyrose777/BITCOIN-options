@@ -112,6 +112,10 @@ def fetch_fear_and_greed():
 
 fear_and_greed_index = fetch_fear_and_greed()
 
+# Calculate support and resistance levels (example method)
+support = data['Close'].min()
+resistance = data['Close'].max()
+
 # Display decision section at the top
 st.write('### Final Decision:')
 
@@ -162,12 +166,26 @@ st.write(f"RSI: {data['RSI'].iloc[-1]:.3f} - {'Buy 🟢' if data['RSI'].iloc[-1]
 st.write(f"MACD: {data['MACD'].iloc[-1]:.3f} - {'Buy 🟢' if data['MACD'].iloc[-1] > 0 else 'Sell 🔴'}")
 st.write(f"Bollinger Bands: Upper = {data['BB_Upper'].iloc[-1]:.3f}, Lower = {data['BB_Lower'].iloc[-1]:.3f}")
 
+# Display support and resistance levels
+st.write('### Support and Resistance Levels:')
+st.write(f"Support Level: {support:.3f}")
+st.write(f"Resistance Level: {resistance:.3f}")
+
 # Display buy/sell signals in a table
 st.write('### Buy/Sell Signals:')
 st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
 
-# Plot the price chart
-st.line_chart(data['Close'])
+# Plot the price chart with support and resistance lines
+st.write('### Price Chart with Support and Resistance:')
+import matplotlib.pyplot as plt
+
+fig, ax = plt.subplots()
+data['Close'].plot(ax=ax, label='BTC-USD Price')
+ax.axhline(support, color='green', linestyle='--', label='Support Level')
+ax.axhline(resistance, color='red', linestyle='--', label='Resistance Level')
+plt.title('BTC-USD Price with Support and Resistance Levels')
+plt.legend()
+st.pyplot(fig)
 
 # Fetch latest news from Yahoo Finance
 st.write('### Latest News:')
