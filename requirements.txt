@@ -3,11 +3,8 @@ streamlit
 yfinance
 pandas
 numpy
-scikit-learn
-nltk
-pytz
+plotly
 requests
-beautifulsoup4
-matplotlib
+scikit-learn
 ta
-ploty
+pytz
