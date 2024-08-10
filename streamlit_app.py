@@ -87,6 +87,8 @@ def plot_support_resistance(data, fib_levels):
     fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
     fig.add_trace(go.Scatter(x=data.index, y=data['Support'], name='Support', line=dict(dash='dash')))
     fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], name='Resistance', line=dict(dash='dash')))
+    for level in fib_levels:
+        fig.add_trace(go.Scatter(x=data.index, y=[level] * len(data.index), name=f'Fib Level {level:.2f}', line=dict(dash='dash')))
     fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
     return fig
 
@@ -233,7 +235,10 @@ def determine_entry_point(signals):
     else:
         return 'Neutral or No Clear Entry Point'
 
+# Get current price
 current_price = data['Close'].iloc[-1]
+
+# Make decisions
 perpetual_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
 entry_point = determine_entry_point(signals)
 
