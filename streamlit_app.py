@@ -216,6 +216,17 @@ def generate_perpetual_options_decision(indicators, moving_averages, fib_levels,
 current_price = data['Close'].iloc[-1]
 perpetual_options_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
 
+# Determine entry point
+def determine_entry_point(signals):
+    entry_point = 'N/A'
+    if signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and signals['ADX'] == 'Buy':
+        entry_point = 'Buy Now'
+    elif signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell' and signals['ADX'] == 'Sell':
+        entry_point = 'Sell Now'
+    return entry_point
+
+entry_point = determine_entry_point(signals)
+
 # Display results
 st.write(f"### Technical Indicators Summary")
 st.write(indicators)
@@ -230,3 +241,5 @@ st.write(f"Value: {fear_and_greed_value}")
 st.write(f"Classification: {fear_and_greed_classification}")
 st.write(f"### Perpetual Options Decision")
 st.write(perpetual_options_decision)
+st.write(f"### Entry Point")
+st.write(entry_point)
