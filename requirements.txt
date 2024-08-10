@@ -9,3 +9,4 @@ pytz
 requests
 beautifulsoup4
 matplotlib
+ta
