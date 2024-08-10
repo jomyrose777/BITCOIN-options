@@ -7,7 +7,7 @@ import pytz
 from datetime import datetime
 import plotly.graph_objects as go
 import requests
-from sklearn.metrics import f1_score
+from sklearn.metrics import matthews_corrcoef
 
 # Define the ticker symbol for Bitcoin 
 ticker = 'BTC-USD'
@@ -129,32 +129,16 @@ def generate_signals(indicators, moving_averages):
     signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
 
     # RSI Signal
-    if indicators['RSI'] < 30:
-        signals['RSI'] = 'Buy'
-    elif indicators['RSI'] > 70:
-        signals['RSI'] = 'Sell'
-    else:
-        signals['RSI'] = 'Neutral'
+    signals['RSI'] = 'Buy' if indicators['RSI'] < 30 else 'Sell' if indicators['RSI'] > 70 else 'Neutral'
 
     # MACD Signal
-    if indicators['MACD'] > 0:
-        signals['MACD'] = 'Buy'
-    else:
-        signals['MACD'] = 'Sell'
+    signals['MACD'] = 'Buy' if indicators['MACD'] > 0 else 'Sell'
 
     # ADX Signal
-    if indicators['ADX'] > 25:
-        signals['ADX'] = 'Buy'
-    else:
-        signals['ADX'] = 'Neutral'
+    signals['ADX'] = 'Buy' if indicators['ADX'] > 25 else 'Neutral'
 
     # CCI Signal
-    if indicators['CCI'] > 100:
-        signals['CCI'] = 'Buy'
-    elif indicators['CCI'] < -100:
-        signals['CCI'] = 'Sell'
-    else:
-        signals['CCI'] = 'Neutral'
+    signals['CCI'] = 'Buy' if indicators['CCI'] > 100 else 'Sell' if indicators['CCI'] < -100 else 'Neutral'
 
     # Moving Averages Signal
     signals['MA'] = 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
@@ -163,13 +147,13 @@ def generate_signals(indicators, moving_averages):
 
 signals = generate_signals(indicators, moving_averages)
 
-# Calculate signal accuracy
+# Calculate signal accuracy using Matthews correlation coefficient
 def calculate_signal_accuracy(logs, signals):
     if len(logs) == 0:
         return 'N/A'
     y_true = logs.iloc[-1][1:]  # Assuming logs contains columns for actual signals
     y_pred = pd.Series(signals).reindex(y_true.index, fill_value='Neutral')
-    return f1_score(y_true, y_pred, average='weighted')
+    return matthews_corrcoef(y_true, y_pred)
 
 # Log signals
 log_file = 'signals_log.csv'
@@ -202,21 +186,27 @@ def generate_perpetual_options_decision(indicators, moving_averages, fib_levels,
     decision = 'Neutral'
     resistance_levels = [fib_levels[3], fib_levels[4], high]
     
-    # Check if current price is near any resistance level
-    if any([current_price >= level for level in resistance_levels]):
-        decision = 'Go Short'
+    # Decision based on indicators
+    if (indicators['RSI'] == 'Buy' and 
+        indicators['MACD'] == 'Buy' and 
+        indicators['ADX'] == 'Buy'):
+        decision = 'Buy Now'
+    elif (indicators['RSI'] == 'Sell' and 
+          indicators['MACD'] == 'Sell' and 
+          indicators['ADX'] == 'Sell'):
+        decision = 'Sell Now'
+    elif (indicators['RSI'] == 'Buy' and 
+          indicators['MACD'] == 'Buy'):
+        decision = 'Potential Buy Opportunity'
+    elif (indicators['RSI'] == 'Sell' and 
+          indicators['MACD'] == 'Sell'):
+        decision = 'Potential Sell Opportunity'
     else:
-        buy_signals = [value for key, value in signals.items() if value == 'Buy']
-        sell_signals = [value for key, value in signals.items() if value == 'Sell']
-        
-        if len(buy_signals) > len(sell_signals):
-            decision = 'Go Long'
-        elif len(sell_signals) > len(buy_signals):
-            decision = 'Go Short'
+        decision = 'Neutral or No Clear Entry Point'
     
     return decision
 
-# Determine entry point
+# Determine entry point based on signals
 def determine_entry_point(signals):
     if (signals['RSI'] == 'Buy' and 
         signals['MACD'] == 'Buy' and 
