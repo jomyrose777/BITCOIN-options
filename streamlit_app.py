@@ -7,37 +7,38 @@ import pytz
 from datetime import datetime
 import plotly.graph_objects as go
 import requests
-from sklearn.metrics import f1_score, matthews_corrcoef
+from sklearn.metrics import f1_score
 
-# Define constants
-TICKER = 'BTC-USD'
-TIMEZONE = pytz.timezone('America/New_York')
-LOG_FILE = 'signals_log.csv'
+# Define the ticker symbol for Bitcoin 
+ticker = 'BTC-USD'
+
+# Define the timezone for EST
+est = pytz.timezone('America/New_York')
 
 # Function to convert datetime to EST
 def to_est(dt):
-    return dt.tz_convert(TIMEZONE) if dt.tzinfo else TIMEZONE.localize(dt)
+    return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
 # Fetch live data from Yahoo Finance
 def fetch_data(ticker):
     try:
         data = yf.download(ticker, period='1d', interval='1m')
         if data.index.tzinfo is None:
-            data.index = data.index.tz_localize(pytz.utc).tz_convert(TIMEZONE)
+            data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
         else:
-            data.index = data.index.tz_convert(TIMEZONE)
+            data.index = data.index.tz_convert(est)
         return data
     except Exception as e:
         st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
 
-data = fetch_data(TICKER)
+data = fetch_data(ticker)
 
 # Check if data is available
 if data.empty:
     st.stop()
 
-# Calculate technical indicators
+# Calculate technical indicators using the ta library
 def calculate_indicators(data):
     data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
     data['MACD'] = ta.trend.MACD(data['Close']).macd()
@@ -50,12 +51,15 @@ def calculate_indicators(data):
     return data
 
 data = calculate_indicators(data)
-data.dropna(inplace=True)  # Drop rows with NaN values
+
+# Drop rows with NaN values
+data.dropna(inplace=True)
 
 # Calculate Fibonacci retracement levels
 def fibonacci_retracement(high, low):
     diff = high - low
-    return [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
+    levels = [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
+    return levels
 
 high = data['High'].max()
 low = data['Low'].min()
@@ -77,14 +81,12 @@ def calculate_support_resistance(data, window=5):
 
 data = calculate_support_resistance(data)
 
-# Plot support and resistance levels
+# Plotting functions
 def plot_support_resistance(data, fib_levels):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
     fig.add_trace(go.Scatter(x=data.index, y=data['Support'], name='Support', line=dict(dash='dash')))
     fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], name='Resistance', line=dict(dash='dash')))
-    for level in fib_levels:
-        fig.add_trace(go.Scatter(x=[data.index.min(), data.index.max()], y=[level, level], mode='lines', name=f'Fibonacci Level {level:.4f}', line=dict(dash='dot')))
     fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
     return fig
 
@@ -92,7 +94,7 @@ st.plotly_chart(plot_support_resistance(data, fib_levels))
 
 # Generate summary of technical indicators
 def technical_indicators_summary(data):
-    return {
+    indicators = {
         'RSI': data['RSI'].iloc[-1],
         'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
         'STOCH': data['STOCH'].iloc[-1],
@@ -101,6 +103,7 @@ def technical_indicators_summary(data):
         'ROC': data['ROC'].iloc[-1],
         'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
     }
+    return indicators
 
 indicators = technical_indicators_summary(data)
 
@@ -119,7 +122,7 @@ def moving_averages_summary(data):
 moving_averages = moving_averages_summary(data)
 
 # Generate buy/sell signals based on indicators and moving averages
-def generate_signals(indicators, moving_averages, data):
+def generate_signals(indicators, moving_averages):
     signals = {}
     signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
 
@@ -156,28 +159,26 @@ def generate_signals(indicators, moving_averages, data):
 
     return signals
 
-signals = generate_signals(indicators, moving_averages, data)
+signals = generate_signals(indicators, moving_averages)
 
 # Calculate signal accuracy
 def calculate_signal_accuracy(logs, signals):
-    if logs.empty:
+    if len(logs) == 0:
         return 'N/A'
-    y_true = logs.iloc[-1][1:]  # Assuming logs contain columns for actual signals
+    y_true = logs.iloc[-1][1:]  # Assuming logs contains columns for actual signals
     y_pred = pd.Series(signals).reindex(y_true.index, fill_value='Neutral')
-    return {
-        'F1 Score': f1_score(y_true, y_pred, average='weighted'),
-        'Matthews Correlation Coefficient': matthews_corrcoef(y_true, y_pred)
-    }
+    return f1_score(y_true, y_pred, average='weighted')
 
 # Log signals
+log_file = 'signals_log.csv'
 try:
-    logs = pd.read_csv(LOG_FILE)
+    logs = pd.read_csv(log_file)
 except FileNotFoundError:
     logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA'])
 
 new_log = pd.DataFrame([signals])
 logs = pd.concat([logs, new_log], ignore_index=True)
-logs.to_csv(LOG_FILE, index=False)
+logs.to_csv(log_file, index=False)
 
 # Fetch Fear and Greed Index
 def fetch_fear_and_greed_index():
@@ -203,8 +204,8 @@ def generate_perpetual_options_decision(indicators, moving_averages, fib_levels,
     if any([current_price >= level for level in resistance_levels]):
         decision = 'Go Short'
     else:
-        buy_signals = [value for value in generate_signals(indicators, moving_averages, data).values() if value == 'Buy']
-        sell_signals = [value for value in generate_signals(indicators, moving_averages, data).values() if value == 'Sell']
+        buy_signals = [value for key, value in signals.items() if value == 'Buy']
+        sell_signals = [value for key, value in signals.items() if value == 'Sell']
         
         if len(buy_signals) > len(sell_signals):
             decision = 'Go Long'
@@ -213,33 +214,53 @@ def generate_perpetual_options_decision(indicators, moving_averages, fib_levels,
     
     return decision
 
-current_price = data['Close'].iloc[-1]
-perpetual_options_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
-
 # Determine entry point
 def determine_entry_point(signals):
-    entry_point = 'N/A'
-    if signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and signals['ADX'] == 'Buy':
-        entry_point = 'Buy Now'
-    elif signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell' and signals['ADX'] == 'Sell':
-        entry_point = 'Sell Now'
-    return entry_point
+    if (signals['RSI'] == 'Buy' and 
+        signals['MACD'] == 'Buy' and 
+        signals['ADX'] == 'Buy'):
+        return 'Buy Now'
+    elif (signals['RSI'] == 'Sell' and 
+          signals['MACD'] == 'Sell' and 
+          signals['ADX'] == 'Sell'):
+        return 'Sell Now'
+    elif (signals['RSI'] == 'Buy' and 
+          signals['MACD'] == 'Buy'):
+        return 'Potential Buy Opportunity'
+    elif (signals['RSI'] == 'Sell' and 
+          signals['MACD'] == 'Sell'):
+        return 'Potential Sell Opportunity'
+    else:
+        return 'Neutral or No Clear Entry Point'
 
+current_price = data['Close'].iloc[-1]
+perpetual_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
 entry_point = determine_entry_point(signals)
 
-# Display results
+# Display results on Streamlit
+st.title('Trading Dashboard')
+
 st.write(f"### Technical Indicators Summary")
 st.write(indicators)
+
 st.write(f"### Moving Averages Summary")
 st.write(moving_averages)
-st.write(f"### Buy/Sell Signals")
-st.write(signals)
-st.write(f"### Signal Accuracy")
-st.write(calculate_signal_accuracy(logs, signals))
+
+st.write(f"### Current Price")
+st.write(f"${current_price:.2f}")
+
+st.write(f"### Perpetual Options Decision")
+st.write(perpetual_decision)
+
+st.write(f"### Entry Point")
+st.write(entry_point)
+
 st.write(f"### Fear and Greed Index")
 st.write(f"Value: {fear_and_greed_value}")
 st.write(f"Classification: {fear_and_greed_classification}")
-st.write(f"### Perpetual Options Decision")
-st.write(perpetual_options_decision)
-st.write(f"### Entry Point")
-st.write(entry_point)
+
+st.write(f"### Signal Accuracy")
+st.write(calculate_signal_accuracy(logs, signals))
+
+st.write(f"### Signals Log")
+st.write(logs.tail())
