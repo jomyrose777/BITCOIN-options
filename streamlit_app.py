@@ -2,24 +2,14 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from nltk.sentiment import SentimentIntensityAnalyzer
-import nltk
+import ta
 import pytz
 from datetime import datetime
-import streamlit.components.v1 as components
+import plotly.graph_objects as go
 import requests
-from bs4 import BeautifulSoup
-import matplotlib.pyplot as plt
+from sklearn.metrics import f1_score
 
-# Download NLTK data for sentiment analysis
-nltk.download('vader_lexicon')
-
-# Initialize SentimentIntensityAnalyzer
-sia = SentimentIntensityAnalyzer()
-
-# Define the ticker symbol for Bitcoin
+# Define the ticker symbol for Bitcoin 
 ticker = 'BTC-USD'
 
 # Define the timezone for EST
@@ -30,192 +20,223 @@ def to_est(dt):
     return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
 # Fetch live data from Yahoo Finance
-@st.cache
 def fetch_data(ticker):
-    data = yf.download(ticker, period='1d', interval='1m')
-    if data.index.tzinfo is None:
-        data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
-    else:
-        data.index = data.index.tz_convert(est)
-    return data
+    try:
+        data = yf.download(ticker, period='1d', interval='1m')
+        if data.index.tzinfo is None:
+            data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
+        else:
+            data.index = data.index.tz_convert(est)
+        return data
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return pd.DataFrame()
 
 data = fetch_data(ticker)
 
-# Calculate technical indicators
+# Check if data is available
+if data.empty:
+    st.stop()
+
+# Calculate technical indicators using the ta library
 def calculate_indicators(data):
-    data['RSI'] = data['Close'].rolling(window=14).apply(lambda x: (x/x.shift(1)-1).mean())
-    data['BB_Middle'] = data['Close'].rolling(window=20).mean()
-    data['BB_Upper'] = data['BB_Middle'] + 2 * data['Close'].rolling(window=20).std()
-    data['BB_Lower'] = data['BB_Middle'] - 2 * data['Close'].rolling(window=20).std()
-    data['MACD'] = data['Close'].ewm(span=12, adjust=False).mean() - data['Close'].ewm(span=26, adjust=False).mean()
-    data['Stoch_OSC'] = (data['Close'] - data['Close'].rolling(window=14).min()) / (data['Close'].rolling(window=14).max() - data['Close'].rolling(window=14).min())
-    data['Force_Index'] = data['Close'].diff() * data['Volume']
-    data['Sentiment'] = data['Close'].apply(lambda x: sia.polarity_scores(str(x))['compound'])
-    data.dropna(inplace=True)
+    data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
+    data['MACD'] = ta.trend.MACD(data['Close']).macd()
+    data['MACD_Signal'] = ta.trend.MACD(data['Close']).macd_signal()
+    data['STOCH'] = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close']).stoch()
+    data['ADX'] = ta.trend.ADXIndicator(data['High'], data['Low'], data['Close']).adx()
+    data['CCI'] = ta.trend.CCIIndicator(data['High'], data['Low'], data['Close']).cci()
+    data['ROC'] = ta.momentum.ROCIndicator(data['Close']).roc()
+    data['WILLIAMSR'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
     return data
 
 data = calculate_indicators(data)
 
-# Define machine learning model
-X = pd.concat([data['Close'], data['RSI'], data['BB_Middle'], data['BB_Upper'], data['BB_Lower'], data['MACD'], data['Stoch_OSC'], data['Force_Index'], data['Sentiment']], axis=1)
-y = data['Close'].shift(-1).dropna()
-X = X.iloc[:len(y)]  # Ensure X and y have the same number of rows
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Drop rows with NaN values
+data.dropna(inplace=True)
 
-# Train the model
-model = RandomForestRegressor(n_estimators=50, random_state=42)
-model.fit(X_train, y_train)
+# Calculate Fibonacci retracement levels
+def fibonacci_retracement(high, low):
+    diff = high - low
+    levels = [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
+    return levels
 
-# Generate predictions
-predictions = model.predict(X_test)
-buy_sell_signals = np.where(predictions > X_test['Close'], 'GO LONG', 'GO SHORT')
+high = data['High'].max()
+low = data['Low'].min()
+fib_levels = fibonacci_retracement(high, low)
 
-# Create a DataFrame for the signals
-signals_df = pd.DataFrame({
-    'Date': X_test.index,
-    'Signal': buy_sell_signals,
-    'Actual_Close': y_test,
-    'Predicted_Close': predictions
-})
-signals_df['Date'] = signals_df['Date'].apply(to_est)  # Convert dates to EST
-signals_df['True_Label'] = np.where(signals_df['Actual_Close'].shift(-1) > signals_df['Actual_Close'], 'GO LONG', 'GO SHORT')
-accuracy = np.mean(signals_df['Signal'] == signals_df['True_Label'])
-signals_df = signals_df.sort_values(by='Date', ascending=False)
+# Detect Doji candlestick patterns
+def detect_doji(data):
+    threshold = 0.001
+    data['Doji'] = abs(data['Close'] - data['Open']) / (data['High'] - data['Low']) < threshold
+    return data
 
-# Fetch Fear and Greed Index from Alternative.me
-def fetch_fear_and_greed():
-    try:
-        url = 'https://alternative.me/crypto/fear-and-greed-index/'
-        response = requests.get(url)
-        soup = BeautifulSoup(response.content, 'html.parser')
-        value = soup.find('div', {'class': 'fng-circle'}).text.strip()
-        return int(value)
-    except Exception as e:
-        st.error(f"Error fetching Fear and Greed Index: {e}")
-        return None
-
-fear_and_greed_index = fetch_fear_and_greed()
-
-# Display the title
-st.title('BTC-Derivatives Technical Analysis')
+data = detect_doji(data)
 
 # Calculate support and resistance levels
-support = data['BB_Lower'].iloc[-1]
-resistance = data['BB_Upper'].iloc[-1]
+def calculate_support_resistance(data, window=5):
+    data['Support'] = data['Low'].rolling(window=window).min()
+    data['Resistance'] = data['High'].rolling(window=window).max()
+    return data
 
-# Plot the price chart with support and resistance
-st.write('### Bitcoin Price Chart with Support and Resistance')
-fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(data['Close'], label='Close')
-ax.plot(data['BB_Middle'], label='BB Middle')
-ax.plot(data['BB_Upper'], label='BB Upper', linestyle='--')
-ax.plot(data['BB_Lower'], label='BB Lower', linestyle='--')
-ax.axhline(y=support, color='r', linestyle='-', label='Support')
-ax.axhline(y=resistance, color='g', linestyle='-', label='Resistance')
-ax.set_title('Bitcoin Price Chart with Support and Resistance')
-ax.set_xlabel('Time')
-ax.set_ylabel('Price')
-ax.legend(loc='upper left')
-st.pyplot(fig)
+data = calculate_support_resistance(data)
 
-# Plot the 1-hour chart
-st.write('### 1-Hour Bitcoin Price Chart')
-fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(data['Close'].resample('1h').mean())
-ax.set_title('1-Hour Bitcoin Price Chart')
-ax.set_xlabel('Time')
-ax.set_ylabel('Price')
-st.pyplot(fig)
+# Plotting functions
+def plot_support_resistance(data, fib_levels):
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Support'], name='Support', line=dict(dash='dash')))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], name='Resistance', line=dict(dash='dash')))
+    fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
+    return fig
 
-# Display decision section
-st.write('### Final Decision:')
+st.plotly_chart(plot_support_resistance(data, fib_levels))
 
-# Initialize counters for bullish and bearish signals
-bullish_signals = 0
-bearish_signals = 0
+# Generate summary of technical indicators
+def technical_indicators_summary(data):
+    indicators = {
+        'RSI': data['RSI'].iloc[-1],
+        'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
+        'STOCH': data['STOCH'].iloc[-1],
+        'ADX': data['ADX'].iloc[-1],
+        'CCI': data['CCI'].iloc[-1],
+        'ROC': data['ROC'].iloc[-1],
+        'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
+    }
+    return indicators
 
-# Check the latest signal and sentiment
-latest_signal = signals_df.iloc[0]['Signal']
-latest_sentiment = data['Sentiment'].iloc[-1]
+indicators = technical_indicators_summary(data)
 
-# Count signals
-if latest_signal == 'GO LONG':
-    bullish_signals += 1
-elif latest_signal == 'GO SHORT':
-    bearish_signals += 1
+# Generate summary of moving averages
+def moving_averages_summary(data):
+    ma = {
+        'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
+        'MA10': data['Close'].rolling(window=10).mean().iloc[-1],
+        'MA20': data['Close'].rolling(window=20).mean().iloc[-1],
+        'MA50': data['Close'].rolling(window=50).mean().iloc[-1],
+        'MA100': data['Close'].rolling(window=100).mean().iloc[-1],
+        'MA200': data['Close'].rolling(window=200).mean().iloc[-1]
+    }
+    return ma
 
-# Analyze sentiment
-if latest_sentiment > 0:
-    bullish_signals += 1
-elif latest_sentiment < 0:
-    bearish_signals += 1
+moving_averages = moving_averages_summary(data)
 
-# Include Fear and Greed Index in the decision
-if fear_and_greed_index is not None:
-    if fear_and_greed_index > 50:
-        bullish_signals += 1
-    elif fear_and_greed_index < 50:
-        bearish_signals += 1
+# Generate buy/sell signals based on indicators and moving averages
+def generate_signals(indicators, moving_averages, data):
+    signals = {}
+    signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
 
-# Define support and resistance (example values; adjust as needed)
-support = data['BB_Lower'].iloc[-1]
-resistance = data['BB_Upper'].iloc[-1]
+    # RSI Signal
+    if indicators['RSI'] < 30:
+        signals['RSI'] = 'Buy'
+    elif indicators['RSI'] > 70:
+        signals['RSI'] = 'Sell'
+    else:
+        signals['RSI'] = 'Neutral'
 
-# Decision based on the count of signals, sentiment, and Fear and Greed Index
-if bullish_signals > bearish_signals:
-    decision = "GO LONG "
-    reason = "The model suggests a buy signal, sentiment is positive, and the Fear and Greed Index indicates greed."
-    stop_loss = support
-elif bearish_signals > bullish_signals:
-    decision = "GO SHORT "
-    reason = "The model suggests a sell signal, sentiment is negative, and the Fear and Greed Index indicates fear."
-    stop_loss = resistance
-else:
-    decision = "HOLD OPTION "
-    reason = "The signals are mixed; it's best to hold the current position."
-    stop_loss = None
+    # MACD Signal
+    if indicators['MACD'] > 0:
+        signals['MACD'] = 'Buy'
+    else:
+        signals['MACD'] = 'Sell'
 
-# Day trading decision
-if data['RSI'].iloc[-1] < 30 and data['MACD'].iloc[-1] > 0:
-    day_trading_decision = "BUY FOR DAY TRADING "
-elif data['RSI'].iloc[-1] > 70 and data['MACD'].iloc[-1] < 0:
-    day_trading_decision = "SELL FOR DAY TRADING "
-else:
-    day_trading_decision = "HOLD FOR DAY TRADING "
+    # ADX Signal
+    if indicators['ADX'] > 25:
+        signals['ADX'] = 'Buy'
+    else:
+        signals['ADX'] = 'Neutral'
 
-st.write(f"### Decision: {decision}")
-st.write(f"**Reason:** {reason}")
-if stop_loss is not None:
-    st.write(f"**Stop Loss:** {stop_loss:.3f}")
-st.write(f"### Day Trading Decision: {day_trading_decision}")
+    # CCI Signal
+    if indicators['CCI'] > 100:
+        signals['CCI'] = 'Buy'
+    elif indicators['CCI'] < -100:
+        signals['CCI'] = 'Sell'
+    else:
+        signals['CCI'] = 'Neutral'
 
-# Display buy/sell signals in a table
-st.write('### Buy/Sell Signals:')
-st.dataframe(signals_df[['Date', 'Signal', 'Actual_Close', 'Predicted_Close']])
+    # Moving Averages Signal
+    signals['MA'] = 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
 
-# Fetch latest news using BeautifulSoup
-st.write('### Latest News:')
+    return signals
+
+signals = generate_signals(indicators, moving_averages, data)
+
+# Calculate signal accuracy
+def calculate_signal_accuracy(logs, signals):
+    if len(logs) == 0:
+        return 'N/A'
+    y_true = logs.iloc[-1][1:]  # Assuming logs contains columns for actual signals
+    y_pred = pd.Series(signals).reindex(y_true.index, fill_value='Neutral')
+    return f1_score(y_true, y_pred, average='weighted')
+
+# Log signals
+log_file = 'signals_log.csv'
 try:
-    url = 'https://www.coindesk.com/feed/'
-    response = requests.get(url)
-    soup = BeautifulSoup(response.content, 'xml')
-    articles = soup.find_all('item')
-    for article in articles[:5]:  # Limit to latest 5 news items
-        title = article.title.text
-        link = article.link.text
-        pub_date = article.pubDate.text
-        st.write(f"**{title}**")
-        st.write(f"Published on: {pub_date}")
-        st.write(f"Link: [Read more]({link})")
-        st.write("---")
-except Exception as e:
-    st.error(f"Error fetching latest news: {e}")
+    logs = pd.read_csv(log_file)
+except FileNotFoundError:
+    logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA'])
 
-# Add JavaScript to auto-refresh the Streamlit app every 60 seconds
-components.html("""
-<script>
-setTimeout(function(){
-    window.location.reload();
-}, 60000);  // Refresh every 60 seconds
-</script>
-""", height=0)
+new_log = pd.DataFrame([signals])
+logs = pd.concat([logs, new_log], ignore_index=True)
+logs.to_csv(log_file, index=False)
+
+# Fetch Fear and Greed Index
+def fetch_fear_and_greed_index():
+    url = "https://api.alternative.me/fng/"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        latest_data = data['data'][0]
+        return latest_data['value'], latest_data['value_classification']
+    except Exception as e:
+        st.error(f"Error fetching Fear and Greed Index: {e}")
+        return 'N/A', 'N/A'
+
+fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
+
+# Generate a perpetual options decision
+def generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price):
+    decision = 'Neutral'
+    resistance_levels = [fib_levels[3], fib_levels[4], high]
+    
+    # Check if current price is near any resistance level
+    if any([current_price >= level for level in resistance_levels]):
+        decision = 'Go Short'
+    else:
+        signals = generate_signals(indicators, moving_averages, data)
+        buy_signals = [value for key, value in signals.items() if value == 'Buy']
+        sell_signals = [value for key, value in signals.items() if value == 'Sell']
+        
+        if len(buy_signals) > len(sell_signals):
+            decision = 'Go Long'
+        elif len(sell_signals) > len(buy_signals):
+            decision = 'Go Short'
+    
+    return decision
+
+# Get perpetual options decision
+current_price = data['Close'].iloc[-1]
+options_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
+
+# Display the information on Streamlit
+st.write('### Support Levels:')
+st.write(f"{fib_levels[0]:.4f}, {fib_levels[1]:.4f}, {fib_levels[2]:.4f}, {fib_levels[3]:.4f}, {fib_levels[4]:.4f}")
+
+st.write('### Latest Fear and Greed Index:')
+st.write(f"Value: {fear_and_greed_value}, Classification: {fear_and_greed_classification}")
+
+st.write('### Trading Signals:')
+st.write(signals)
+
+st.write('### Perpetual Options Decision:')
+st.write(options_decision)
+
+# Calculate and display signal accuracy
+accuracy = calculate_signal_accuracy(logs, signals)
+st.write(f"Signal Accuracy (F1 Score): {accuracy:.2f}")
+
+# Add additional features and enhancements
+st.write("### Advanced Analysis:")
+st.write("Add more advanced features, backtesting, and visualizations as needed.")
+
