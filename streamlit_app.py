@@ -71,6 +71,13 @@ def calculate_support_resistance(data: pd.DataFrame, window: int = 5) -> pd.Data
     data['Resistance'] = data['High'].rolling(window=window).max()
     return data
 
+# Calculate moving averages and ensure they are added to DataFrame
+def calculate_moving_averages(data: pd.DataFrame) -> pd.DataFrame:
+    """Calculate and add moving averages to DataFrame."""
+    data['MA5'] = data['Close'].rolling(window=5).mean()
+    data['MA10'] = data['Close'].rolling(window=10).mean()
+    return data
+
 # Generate buy/sell signals based on indicators and moving averages
 def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, float]) -> Dict[str, str]:
     """Generate trading signals based on indicators and moving averages."""
@@ -159,11 +166,12 @@ def main():
         low = data['Low'].min()
         fib_levels = fibonacci_retracement(high, low)
         data = calculate_support_resistance(data)
+        data = calculate_moving_averages(data)
 
         # Calculate moving averages
         moving_averages = {
-            'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
-            'MA10': data['Close'].rolling(window=10).mean().iloc[-1]
+            'MA5': data['MA5'].iloc[-1],
+            'MA10': data['MA10'].iloc[-1]
         }
 
         # Retrieve indicators
@@ -178,11 +186,12 @@ def main():
             'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
         }
 
+        current_price = data['Close'].iloc[-1]
+
         # Generate trading signals
         signals = generate_signals(indicators, moving_averages)
-        current_price = data['Close'].iloc[-1]
-        
-        # Generate perpetual options decision
+
+        # Generate trading decision
         decision = generate_perpetual_options_decision(signals, moving_averages, fib_levels, high, low, current_price)
 
         # Display results
