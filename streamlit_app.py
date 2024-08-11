@@ -4,12 +4,13 @@ import pandas as pd
 import numpy as np
 import ta
 import pytz
-from datetime import datetime
+from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import requests
-from sklearn.metrics import matthews_corrcoef
+from sklearn.metrics import f1_score
+import time
 
-# Define the ticker symbol for Bitcoin 
+# Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
 
 # Define the timezone for EST
@@ -32,13 +33,6 @@ def fetch_data(ticker):
         st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
 
-data = fetch_data(ticker)
-
-# Check if data is available
-if data.empty:
-    st.stop()
-
-# Calculate technical indicators using the ta library
 def calculate_indicators(data):
     data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
     data['MACD'] = ta.trend.MACD(data['Close']).macd()
@@ -50,38 +44,21 @@ def calculate_indicators(data):
     data['WILLIAMSR'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
     return data
 
-data = calculate_indicators(data)
-
-# Drop rows with NaN values
-data.dropna(inplace=True)
-
-# Calculate Fibonacci retracement levels
 def fibonacci_retracement(high, low):
     diff = high - low
     levels = [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
     return levels
 
-high = data['High'].max()
-low = data['Low'].min()
-fib_levels = fibonacci_retracement(high, low)
-
-# Detect Doji candlestick patterns
 def detect_doji(data):
     threshold = 0.001
     data['Doji'] = abs(data['Close'] - data['Open']) / (data['High'] - data['Low']) < threshold
     return data
 
-data = detect_doji(data)
-
-# Calculate support and resistance levels
 def calculate_support_resistance(data, window=5):
     data['Support'] = data['Low'].rolling(window=window).min()
     data['Resistance'] = data['High'].rolling(window=window).max()
     return data
 
-data = calculate_support_resistance(data)
-
-# Plotting functions
 def plot_support_resistance(data, fib_levels):
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
@@ -92,81 +69,89 @@ def plot_support_resistance(data, fib_levels):
     fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
     return fig
 
-st.plotly_chart(plot_support_resistance(data, fib_levels))
+def butterfly_spread_signal(data):
+    # Placeholder logic for Butterfly Spread
+    # You need actual options data to implement this
+    current_price = data['Close'].iloc[-1]
+    strike1 = 9800
+    strike2 = 10000
+    strike3 = 10200
+    if current_price > strike1 and current_price < strike3:
+        return 'Neutral'
+    else:
+        return 'Go Short' if current_price < strike1 else 'Go Long'
 
-# Generate summary of technical indicators
-def technical_indicators_summary(data):
-    indicators = {
-        'RSI': data['RSI'].iloc[-1],
-        'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
-        'STOCH': data['STOCH'].iloc[-1],
-        'ADX': data['ADX'].iloc[-1],
-        'CCI': data['CCI'].iloc[-1],
-        'ROC': data['ROC'].iloc[-1],
-        'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
-    }
-    return indicators
+def iron_condor_signal(data):
+    # Placeholder logic for Iron Condor
+    # You need actual options data to implement this
+    current_price = data['Close'].iloc[-1]
+    lower_strike = 9500
+    upper_strike = 10500
+    if lower_strike <= current_price <= upper_strike:
+        return 'Neutral'
+    else:
+        return 'Go Short' if current_price < lower_strike else 'Go Long'
 
-indicators = technical_indicators_summary(data)
+def gmmma_signal(data):
+    # Guppy Multiple Moving Averages (GMMMA)
+    short_term_ma = data['Close'].rolling(window=3).mean().iloc[-1]
+    long_term_ma = data['Close'].rolling(window=10).mean().iloc[-1]
+    if short_term_ma > long_term_ma:
+        return 'Buy'
+    elif short_term_ma < long_term_ma:
+        return 'Sell'
+    else:
+        return 'Neutral'
 
-# Generate summary of moving averages
-def moving_averages_summary(data):
-    ma = {
-        'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
-        'MA10': data['Close'].rolling(window=10).mean().iloc[-1],
-        'MA20': data['Close'].rolling(window=20).mean().iloc[-1],
-        'MA50': data['Close'].rolling(window=50).mean().iloc[-1],
-        'MA100': data['Close'].rolling(window=100).mean().iloc[-1],
-        'MA200': data['Close'].rolling(window=200).mean().iloc[-1]
-    }
-    return ma
-
-moving_averages = moving_averages_summary(data)
-
-# Generate buy/sell signals based on indicators and moving averages
 def generate_signals(indicators, moving_averages):
     signals = {}
     signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
 
     # RSI Signal
-    signals['RSI'] = 'Buy' if indicators['RSI'] < 30 else 'Sell' if indicators['RSI'] > 70 else 'Neutral'
+    if indicators['RSI'] < 30:
+        signals['RSI'] = 'Buy'
+    elif indicators['RSI'] > 70:
+        signals['RSI'] = 'Sell'
+    else:
+        signals['RSI'] = 'Neutral'
 
     # MACD Signal
-    signals['MACD'] = 'Buy' if indicators['MACD'] > 0 else 'Sell'
+    if indicators['MACD'] > 0:
+        signals['MACD'] = 'Buy'
+    else:
+        signals['MACD'] = 'Sell'
 
     # ADX Signal
-    signals['ADX'] = 'Buy' if indicators['ADX'] > 25 else 'Neutral'
+    if indicators['ADX'] > 25:
+        signals['ADX'] = 'Buy'
+    else:
+        signals['ADX'] = 'Neutral'
 
     # CCI Signal
-    signals['CCI'] = 'Buy' if indicators['CCI'] > 100 else 'Sell' if indicators['CCI'] < -100 else 'Neutral'
+    if indicators['CCI'] > 100:
+        signals['CCI'] = 'Buy'
+    elif indicators['CCI'] < -100:
+        signals['CCI'] = 'Sell'
+    else:
+        signals['CCI'] = 'Neutral'
 
     # Moving Averages Signal
     signals['MA'] = 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
 
+    # Integrate other strategies
+    signals['Butterfly Spread'] = butterfly_spread_signal(data)
+    signals['Iron Condor'] = iron_condor_signal(data)
+    signals['GMMMA'] = gmmma_signal(data)
+
     return signals
 
-signals = generate_signals(indicators, moving_averages)
-
-# Calculate signal accuracy using Matthews correlation coefficient
 def calculate_signal_accuracy(logs, signals):
     if len(logs) == 0:
         return 'N/A'
-    y_true = logs.iloc[-1][1:]  # Assuming logs contains columns for actual signals
+    y_true = logs.iloc[-1][1:] # Assuming logs contains columns for actual signals
     y_pred = pd.Series(signals).reindex(y_true.index, fill_value='Neutral')
-    return matthews_corrcoef(y_true, y_pred)
+    return f1_score(y_true, y_pred, average='weighted')
 
-# Log signals
-log_file = 'signals_log.csv'
-try:
-    logs = pd.read_csv(log_file)
-except FileNotFoundError:
-    logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA'])
-
-new_log = pd.DataFrame([signals])
-logs = pd.concat([logs, new_log], ignore_index=True)
-logs.to_csv(log_file, index=False)
-
-# Fetch Fear and Greed Index
 def fetch_fear_and_greed_index():
     url = "https://api.alternative.me/fng/"
     try:
@@ -179,83 +164,86 @@ def fetch_fear_and_greed_index():
         st.error(f"Error fetching Fear and Greed Index: {e}")
         return 'N/A', 'N/A'
 
-fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
-
-# Generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price):
     decision = 'Neutral'
     resistance_levels = [fib_levels[3], fib_levels[4], high]
-    
-    # Decision based on indicators
-    if (indicators['RSI'] == 'Buy' and 
-        indicators['MACD'] == 'Buy' and 
-        indicators['ADX'] == 'Buy'):
-        decision = 'Buy Now'
-    elif (indicators['RSI'] == 'Sell' and 
-          indicators['MACD'] == 'Sell' and 
-          indicators['ADX'] == 'Sell'):
-        decision = 'Sell Now'
-    elif (indicators['RSI'] == 'Buy' and 
-          indicators['MACD'] == 'Buy'):
-        decision = 'Potential Buy Opportunity'
-    elif (indicators['RSI'] == 'Sell' and 
-          indicators['MACD'] == 'Sell'):
-        decision = 'Potential Sell Opportunity'
+
+    if any([current_price >= level for level in resistance_levels]):
+        decision = 'Go Short'
     else:
-        decision = 'Neutral or No Clear Entry Point'
-    
+        buy_signals = [value for key, value in signals.items() if value == 'Buy']
+        sell_signals = [value for key, value in signals.items() if value == 'Sell']
+
+        if len(buy_signals) > len(sell_signals):
+            decision = 'Go Long'
+        elif len(sell_signals) > len(buy_signals):
+            decision = 'Go Short'
+
     return decision
 
-# Determine entry point based on signals
 def determine_entry_point(signals):
-    if (signals['RSI'] == 'Buy' and 
-        signals['MACD'] == 'Buy' and 
+    if (signals['RSI'] == 'Buy' and
+        signals['MACD'] == 'Buy' and
         signals['ADX'] == 'Buy'):
         return 'Buy Now'
-    elif (signals['RSI'] == 'Sell' and 
-          signals['MACD'] == 'Sell' and 
+    elif (signals['RSI'] == 'Sell' and
+          signals['MACD'] == 'Sell' and
           signals['ADX'] == 'Sell'):
         return 'Sell Now'
-    elif (signals['RSI'] == 'Buy' and 
+    elif (signals['RSI'] == 'Buy' and
           signals['MACD'] == 'Buy'):
         return 'Potential Buy Opportunity'
-    elif (signals['RSI'] == 'Sell' and 
+    elif (signals['RSI'] == 'Sell' and
           signals['MACD'] == 'Sell'):
         return 'Potential Sell Opportunity'
     else:
         return 'Neutral or No Clear Entry Point'
 
-# Get current price
-current_price = data['Close'].iloc[-1]
+# Main function to update every 30 seconds
+def main():
+    while True:
+        data = fetch_data(ticker)
+        if data.empty:
+            st.stop()
 
-# Make decisions
-perpetual_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
-entry_point = determine_entry_point(signals)
+        data = calculate_indicators(data)
+        data.dropna(inplace=True)
 
-# Display results on Streamlit
-st.title('Trading Dashboard')
+        high = data['High'].max()
+        low = data['Low'].min()
+        fib_levels = fibonacci_retracement(high, low)
+        data = detect_doji(data)
+        data = calculate_support_resistance(data)
 
-st.write(f"### Technical Indicators Summary")
-st.write(indicators)
+        indicators = data.iloc[-1]
+        moving_averages = {
+            'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
+            'MA10': data['Close'].rolling(window=10).mean().iloc[-1]
+        }
 
-st.write(f"### Moving Averages Summary")
-st.write(moving_averages)
+        signals = generate_signals(indicators, moving_averages)
+        accuracy = calculate_signal_accuracy(data, signals)
 
-st.write(f"### Current Price")
-st.write(f"${current_price:.2f}")
+        current_price = data['Close'].iloc[-1]
+        decision = generate_perpetual_options_decision(signals, moving_averages, fib_levels, current_price)
+        entry_point = determine_entry_point(signals)
 
-st.write(f"### Perpetual Options Decision")
-st.write(perpetual_decision)
+        # Display results
+        st.write(f"**Timestamp:** {signals['timestamp']}")
+        st.write(f"**Current Price:** {current_price:.2f}")
+        st.write(f"**Decision:** {decision}")
+        st.write(f"**Entry Point:** {entry_point}")
+        st.write(f"**Signal Accuracy (F1 Score):** {accuracy:.2f}")
 
-st.write(f"### Entry Point")
-st.write(entry_point)
+        fig = plot_support_resistance(data, fib_levels)
+        st.plotly_chart(fig)
 
-st.write(f"### Fear and Greed Index")
-st.write(f"Value: {fear_and_greed_value}")
-st.write(f"Classification: {fear_and_greed_classification}")
+        # Fetch Fear and Greed Index
+        fng_value, fng_classification = fetch_fear_and_greed_index()
+        st.write(f"**Fear and Greed Index:** {fng_value} ({fng_classification})")
 
-st.write(f"### Signal Accuracy")
-st.write(calculate_signal_accuracy(logs, signals))
+        # Update every 30 seconds
+        time.sleep(30)
 
-st.write(f"### Signals Log")
-st.write(logs.tail())
+if __name__ == "__main__":
+    main()
