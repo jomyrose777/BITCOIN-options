@@ -143,6 +143,8 @@ def fetch_fear_and_greed_index() -> Tuple[str, str]:
         st.error(f"Error fetching Fear and Greed Index: {e}")
         return 'N/A', 'N/A'
 
+import time  # Add this import at the top of your script
+
 def main():
     while True:
         # Fetch and prepare data
@@ -202,11 +204,7 @@ def main():
                                              high=data['High'],
                                              low=data['Low'],
                                              close=data['Close'])])
-        fig.update_layout(title='Bitcoin Candlestick Chart')
         st.plotly_chart(fig)
 
-        # Wait before refreshing
-        st.time.sleep(60)
-
-if __name__ == "__main__":
-    main()
+        # Wait for a while before the next iteration (e.g., 1 minute)
+        time.sleep(60)  # Use time.sleep instead of st.time.sleep
