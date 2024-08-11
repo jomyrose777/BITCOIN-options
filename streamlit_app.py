@@ -7,7 +7,6 @@ import pytz
 from datetime import datetime
 import plotly.graph_objects as go
 import requests
-from sklearn.metrics import f1_score
 from typing import Dict, Tuple, List
 
 # Define the ticker symbol for Bitcoin
@@ -18,12 +17,14 @@ est = pytz.timezone('America/New_York')
 
 # Function to convert datetime to EST
 def to_est(dt: pd.Timestamp) -> pd.Timestamp:
-    return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
+    if dt.tzinfo is None:
+        return est.localize(dt)
+    return dt.tz_convert(est)
 
 # Fetch live data from Yahoo Finance
 def fetch_data(ticker: str) -> pd.DataFrame:
     try:
-        data = yf.download(ticker, period='1d', interval='30m')  # Change interval to 30 minutes
+        data = yf.download(ticker, period='1d', interval='30m')
         if data.index.tzinfo is None:
             data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
         else:
@@ -87,7 +88,7 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
 
 # Generate a perpetual options decision
 def generate_perpetual_options_decision(indicators: Dict[str, float], moving_averages: Dict[str, float],
-                                         fib_levels: List[float], current_price: float) -> str:
+                                        fib_levels: List[float], current_price: float) -> str:
     decision = 'Neutral'
     resistance_levels = [fib_levels[3], fib_levels[4], high]
 
@@ -158,39 +159,28 @@ def main():
 
     indicators = {
         'RSI': data['RSI'].iloc[-1],
-        'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
-        'STOCH': data['STOCH'].iloc[-1],
+        'MACD': data['MACD'].iloc[-1],
         'ADX': data['ADX'].iloc[-1],
         'CCI': data['CCI'].iloc[-1],
-        'ROC': data['ROC'].iloc[-1],
         'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
     }
 
-    # Generate signals and decisions
+    # Generate signals
     signals = generate_signals(indicators, moving_averages)
-    current_price = data['Close'].iloc[-1]
-    perpetual_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
     entry_point = determine_entry_point(signals)
+
+    # Fetch Fear and Greed Index
     fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
 
-    # Display results on Streamlit
-    st.title('Bitcoin Trading Dashboard')
+    # Generate perpetual options decision
+    current_price = data['Close'].iloc[-1]
+    perpetual_options_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
 
-    st.write(f"### Technical Indicators Summary")
-    st.write(indicators)
-
-    st.write(f"### Moving Averages Summary")
-    st.write(moving_averages)
-
-    st.write(f"### Current Price")
-    st.write(f"${current_price:.2f}")
-
-    st.write(f"### Perpetual Options Decision")
-    st.write(perpetual_decision)
-
+    # Display results
     st.write(f"### Entry Point")
     st.write(entry_point)
-
+    st.write(f"### Perpetual Options Decision")
+    st.write(perpetual_options_decision)
     st.write(f"### Fear and Greed Index")
     st.write(f"Value: {fear_and_greed_value}")
     st.write(f"Classification: {fear_and_greed_classification}")
