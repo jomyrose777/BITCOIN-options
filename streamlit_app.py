@@ -230,6 +230,17 @@ def main():
     fear_and_greed_index, classification = fetch_fear_and_greed_index()
     st.write(f"Fear and Greed Index: {fear_and_greed_index} ({classification})")
 
+    # Determine final decision based on all analyses
+    final_decision = determine_final_decision(
+        signals, 
+        iron_condor_premium, 
+        butterfly_premium, 
+        adjustment, 
+        fear_and_greed_index
+    )
+
+    st.write("Final Decision:", final_decision)
+
     # Plot the data
     fig = go.Figure()
 
@@ -248,6 +259,20 @@ def main():
                                  name='Candlestick'))
 
     st.plotly_chart(fig)
+
+def determine_final_decision(signals, iron_condor_premium, butterfly_premium, gamma_adjustment, fear_and_greed_index):
+    # Implement your decision logic here
+
+    # Example logic
+    if iron_condor_premium > 0 and butterfly_premium > 0:
+        if gamma_adjustment > 0:
+            entry_point = "Current Price"  # Example entry point
+            return f"Go Long at {entry_point}. Iron Condor and Butterfly Spread show positive outcomes. Gamma Scalping adjustment supports this decision."
+        else:
+            entry_point = "Current Price"
+            return f"Go Short at {entry_point}. Iron Condor and Butterfly Spread show positive outcomes, but Gamma Scalping adjustment suggests caution."
+    else:
+        return "No clear signal. Re-evaluate strategies and indicators."
 
 if __name__ == "__main__":
     main()
