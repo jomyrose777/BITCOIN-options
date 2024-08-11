@@ -93,14 +93,17 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
 
     return signals
 
-# Generate a perpetual options decision
-def generate_perpetual_options_decision(indicators: Dict[str, float], moving_averages: Dict[str, float],
-                                        fib_levels: List[float], current_price: float) -> str:
-    """Generate a decision for perpetual options trading."""
+def generate_perpetual_options_decision(signals: Dict[str, str], moving_averages: Dict[str, float],
+                                        fib_levels: List[float], high: float, low: float, 
+                                        current_price: float) -> str:
+    """Generate a decision for perpetual options trading based on indicators, moving averages, and Fibonacci levels."""
     decision = 'Neutral'
+    
+    # Define resistance levels for decision making
     resistance_levels = [fib_levels[3], fib_levels[4], high]
 
-    if any([current_price >= level for level in resistance_levels]):
+    # Check if the current price is above any resistance levels
+    if any(current_price >= level for level in resistance_levels):
         decision = 'Go Short'
     else:
         buy_signals = [value for key, value in signals.items() if value == 'Buy']
@@ -142,66 +145,65 @@ def fetch_fear_and_greed_index() -> Tuple[str, str]:
         return 'N/A', 'N/A'
 
 def main():
-    # Fetch and prepare data
-    data = fetch_data(ticker)
-    if data.empty:
-        st.stop()
+    while True:
+        # Fetch and prepare data
+        data = fetch_data(ticker)
+        if data.empty:
+            st.stop()
 
-    # Calculate indicators and levels
-    data = calculate_indicators(data)
-    data = detect_doji(data)
-    data = calculate_support_resistance(data)
+        # Calculate indicators and levels
+        data = calculate_indicators(data)
+        data = detect_doji(data)
+        high = data['High'].max()
+        low = data['Low'].min()
+        fib_levels = fibonacci_retracement(high, low)
+        data = calculate_support_resistance(data)
 
-    # Calculate Fibonacci retracement levels
-    high = data['High'].max()
-    low = data['Low'].min()
-    fib_levels = fibonacci_retracement(high, low)
+        # Calculate moving averages
+        moving_averages = {
+            'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
+            'MA10': data['Close'].rolling(window=10).mean().iloc[-1]
+        }
 
-    # Calculate moving averages
-    moving_averages = {
-        'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
-        'MA10': data['Close'].rolling(window=10).mean().iloc[-1],
-        'MA20': data['Close'].rolling(window=20).mean().iloc[-1],
-        'MA50': data['Close'].rolling(window=50).mean().iloc[-1],
-        'MA100': data['Close'].rolling(window=100).mean().iloc[-1],
-        'MA200': data['Close'].rolling(window=200).mean().iloc[-1]
-    }
+        # Retrieve indicators
+        indicators = {
+            'RSI': data['RSI'].iloc[-1],
+            'MACD': data['MACD'].iloc[-1],
+            'MACD_Signal': data['MACD_Signal'].iloc[-1],
+            'STOCH': data['STOCH'].iloc[-1],
+            'ADX': data['ADX'].iloc[-1],
+            'CCI': data['CCI'].iloc[-1],
+            'ROC': data['ROC'].iloc[-1],
+            'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
+        }
 
-    indicators = {
-        'RSI': data['RSI'].iloc[-1],
-        'MACD': data['MACD'].iloc[-1],
-        'ADX': data['ADX'].iloc[-1],
-        'CCI': data['CCI'].iloc[-1],
-        'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
-    }
+        # Generate trading signals
+        signals = generate_signals(indicators, moving_averages)
+        current_price = data['Close'].iloc[-1]
+        
+        # Generate perpetual options decision
+        decision = generate_perpetual_options_decision(signals, moving_averages, fib_levels, high, low, current_price)
+        entry_point = determine_entry_point(signals)
+        
+        # Display results
+        st.write(f"### Entry Point")
+        st.write(entry_point)
+        st.write(f"### Perpetual Options Decision")
+        st.write(decision)
 
-    # Generate signals
-    signals = generate_signals(indicators, moving_averages)
-    entry_point = determine_entry_point(signals)
+        # Fetch and display Fear and Greed Index
+        fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
+        st.write(f"### Fear and Greed Index")
+        st.write(f"Value: {fear_and_greed_value}")
+        st.write(f"Classification: {fear_and_greed_classification}")
 
-    # Fetch Fear and Greed Index
-    fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
+        # Plot candlestick chart
+        fig = go.Figure(data=[go.Candlestick(x=data.index,
+                                             open=data['Open'],
+                                             high=data['High'],
+                                             low=data['Low'],
+                                             close=data['Close'])])
+        st.plotly_chart(fig)
 
-    # Generate perpetual options decision
-    current_price = data['Close'].iloc[-1]
-    perpetual_options_decision = generate_perpetual_options_decision(indicators, moving_averages, fib_levels, current_price)
-
-    # Display results
-    st.write(f"### Entry Point")
-    st.write(entry_point)
-    st.write(f"### Perpetual Options Decision")
-    st.write(perpetual_options_decision)
-    st.write(f"### Fear and Greed Index")
-    st.write(f"Value: {fear_and_greed_value}")
-    st.write(f"Classification: {fear_and_greed_classification}")
-
-    # Plot candlestick chart
-    fig = go.Figure(data=[go.Candlestick(x=data.index,
-                                         open=data['Open'],
-                                         high=data['High'],
-                                         low=data['Low'],
-                                         close=data['Close'])])
-    st.plotly_chart(fig)
-
-if __name__ == "__main__":
-    main()
+        # Wait for a while before the next iteration (e.g., 1 minute)
+        st.time.sleep(60)
