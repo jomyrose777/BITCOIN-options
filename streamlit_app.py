@@ -17,12 +17,14 @@ est = pytz.timezone('America/New_York')
 
 # Function to convert datetime to EST
 def to_est(dt: pd.Timestamp) -> pd.Timestamp:
+    """Convert a datetime to Eastern Standard Time."""
     if dt.tzinfo is None:
         return est.localize(dt)
     return dt.tz_convert(est)
 
 # Fetch live data from Yahoo Finance
 def fetch_data(ticker: str) -> pd.DataFrame:
+    """Fetch historical data from Yahoo Finance."""
     try:
         data = yf.download(ticker, period='1d', interval='30m')
         if data.index.tzinfo is None:
@@ -36,6 +38,7 @@ def fetch_data(ticker: str) -> pd.DataFrame:
 
 # Calculate technical indicators using the ta library
 def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
+    """Calculate technical indicators."""
     data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
     macd = ta.trend.MACD(data['Close'])
     data['MACD'] = macd.macd()
@@ -49,26 +52,30 @@ def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
 
 # Calculate Fibonacci retracement levels
 def fibonacci_retracement(high: float, low: float) -> List[float]:
+    """Calculate Fibonacci retracement levels."""
     diff = high - low
     levels = [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
     return levels
 
 # Detect Doji candlestick patterns
 def detect_doji(data: pd.DataFrame) -> pd.DataFrame:
+    """Detect Doji candlestick patterns."""
     threshold = 0.001
     data['Doji'] = abs(data['Close'] - data['Open']) / (data['High'] - data['Low']) < threshold
     return data
 
 # Calculate support and resistance levels
 def calculate_support_resistance(data: pd.DataFrame, window: int = 5) -> pd.DataFrame:
+    """Calculate support and resistance levels."""
     data['Support'] = data['Low'].rolling(window=window).min()
     data['Resistance'] = data['High'].rolling(window=window).max()
     return data
 
 # Generate buy/sell signals based on indicators and moving averages
 def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, float]) -> Dict[str, str]:
+    """Generate trading signals based on indicators and moving averages."""
     signals = {}
-    signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
+    signals['timestamp'] = to_est(pd.Timestamp.now()).strftime('%Y-%m-%d %I:%M:%S %p')
 
     def get_signal(value, buy_threshold, sell_threshold):
         if value < buy_threshold:
@@ -89,6 +96,7 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
 # Generate a perpetual options decision
 def generate_perpetual_options_decision(indicators: Dict[str, float], moving_averages: Dict[str, float],
                                         fib_levels: List[float], current_price: float) -> str:
+    """Generate a decision for perpetual options trading."""
     decision = 'Neutral'
     resistance_levels = [fib_levels[3], fib_levels[4], high]
 
@@ -107,6 +115,7 @@ def generate_perpetual_options_decision(indicators: Dict[str, float], moving_ave
 
 # Determine entry point
 def determine_entry_point(signals: Dict[str, str]) -> str:
+    """Determine the entry point for trading based on signals."""
     if (signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and signals['ADX'] == 'Buy'):
         return 'Buy Now'
     elif (signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell' and signals['ADX'] == 'Sell'):
@@ -120,6 +129,7 @@ def determine_entry_point(signals: Dict[str, str]) -> str:
 
 # Fetch Fear and Greed Index
 def fetch_fear_and_greed_index() -> Tuple[str, str]:
+    """Fetch the Fear and Greed Index from an API."""
     url = "https://api.alternative.me/fng/"
     try:
         response = requests.get(url)
