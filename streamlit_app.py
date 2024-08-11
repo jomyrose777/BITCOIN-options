@@ -18,7 +18,9 @@ est = pytz.timezone('America/New_York')
 
 # Function to convert datetime to EST
 def to_est(dt):
-    return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
+    if dt.tzinfo is None:
+        return est.localize(dt)
+    return dt.tz_convert(est)
 
 # Fetch live data from Yahoo Finance
 def fetch_data(ticker):
@@ -105,7 +107,10 @@ def gmmma_signal(data):
 
 def generate_signals(indicators, moving_averages):
     signals = {}
-    signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
+    latest_time = data.index[-1]
+
+    # Add timestamp conversion
+    signals['timestamp'] = to_est(latest_time).strftime('%Y-%m-%d %I:%M:%S %p')
 
     # RSI Signal
     if indicators['RSI'] < 30:
@@ -208,20 +213,17 @@ def main():
 
         data = calculate_indicators(data)
         data.dropna(inplace=True)
-
         high = data['High'].max()
         low = data['Low'].min()
         fib_levels = fibonacci_retracement(high, low)
-        data = detect_doji(data)
         data = calculate_support_resistance(data)
 
-        indicators = data.iloc[-1]
         moving_averages = {
             'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
             'MA10': data['Close'].rolling(window=10).mean().iloc[-1]
         }
 
-        signals = generate_signals(indicators, moving_averages)
+        signals = generate_signals(data, moving_averages)
         accuracy = calculate_signal_accuracy(data, signals)
 
         current_price = data['Close'].iloc[-1]
