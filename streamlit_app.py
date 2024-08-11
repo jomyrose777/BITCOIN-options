@@ -8,6 +8,7 @@ from datetime import datetime
 import plotly.graph_objects as go
 import requests
 from typing import Dict, Tuple, List
+import time
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
@@ -21,6 +22,7 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
     return timestamp.tz_localize(pytz.utc).tz_convert(est)
 
 # Fetch live data from Yahoo Finance
+@st.cache_data(ttl=60)  # Cache data for 60 seconds
 def fetch_data(ticker: str) -> pd.DataFrame:
     """Fetch historical data from Yahoo Finance."""
     try:
@@ -85,7 +87,7 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
     signals = {
         'timestamp': current_time_est.strftime('%Y-%m-%d %I:%M:%S %p'),
         'RSI': get_signal(indicators['RSI'], 30, 70),
-        'MACD': 'Buy' if indicators['MACD'] > 0 else 'Sell',
+        'MACD': 'Buy' if indicators['MACD'] > indicators['MACD_Signal'] else 'Sell',
         'ADX': 'Buy' if indicators['ADX'] > 25 else 'Neutral',
         'CCI': get_signal(indicators['CCI'], -100, 100),
         'MA': 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
@@ -143,8 +145,6 @@ def fetch_fear_and_greed_index() -> Tuple[str, str]:
         st.error(f"Error fetching Fear and Greed Index: {e}")
         return 'N/A', 'N/A'
 
-import time  # Add this import at the top of your script
-
 def main():
     while True:
         # Fetch and prepare data
@@ -184,27 +184,34 @@ def main():
         
         # Generate perpetual options decision
         decision = generate_perpetual_options_decision(signals, moving_averages, fib_levels, high, low, current_price)
-        entry_point = determine_entry_point(signals)
-        
+
         # Display results
-        st.write(f"### Entry Point")
-        st.write(entry_point)
-        st.write(f"### Perpetual Options Decision")
-        st.write(decision)
+        st.write(f"Current Price: ${current_price:.2f}")
+        st.write(f"Decision: {decision}")
+        st.write(f"Signals: {signals}")
+        st.write(f"Fear and Greed Index: {fetch_fear_and_greed_index()}")
 
-        # Fetch and display Fear and Greed Index
-        fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
-        st.write(f"### Fear and Greed Index")
-        st.write(f"Value: {fear_and_greed_value}")
-        st.write(f"Classification: {fear_and_greed_classification}")
+        # Plot data
+        fig = go.Figure()
 
-        # Plot candlestick chart
-        fig = go.Figure(data=[go.Candlestick(x=data.index,
-                                             open=data['Open'],
-                                             high=data['High'],
-                                             low=data['Low'],
-                                             close=data['Close'])])
+        fig.add_trace(go.Candlestick(x=data.index,
+                                     open=data['Open'],
+                                     high=data['High'],
+                                     low=data['Low'],
+                                     close=data['Close'],
+                                     name='Candlestick'))
+
+        # Add technical indicators to the plot
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
+
+        fig.update_layout(title='BTC-USD Price and Indicators',
+                          xaxis_title='Time',
+                          yaxis_title='Price')
         st.plotly_chart(fig)
 
-        # Wait for a while before the next iteration (e.g., 1 minute)
-        time.sleep(60)  # Use time.sleep instead of st.time.sleep
+        # Delay to prevent excessive requests
+        time.sleep(60)
+
+if __name__ == "__main__":
+    main()
