@@ -166,10 +166,8 @@ def main():
     data = calculate_support_resistance(data)
 
     # Calculate moving averages
-    moving_averages = {
-        'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
-        'MA10': data['Close'].rolling(window=10).mean().iloc[-1]
-    }
+    data['MA5'] = data['Close'].rolling(window=5).mean()
+    data['MA10'] = data['Close'].rolling(window=10).mean()
 
     # Retrieve indicators
     indicators = {
@@ -184,7 +182,7 @@ def main():
     }
 
     # Generate signals
-    signals = generate_signals(indicators, moving_averages)
+    signals = generate_signals(indicators, {'MA5': data['MA5'].iloc[-1], 'MA10': data['MA10'].iloc[-1]})
     st.write("Trading Signals:", signals)
 
     # Input fields for Iron Condor
@@ -197,7 +195,7 @@ def main():
     put2_premium = st.number_input("Put 2 Premium", min_value=0.0, value=100.0)
     call1_premium = st.number_input("Call 1 Premium", min_value=0.0, value=100.0)
     call2_premium = st.number_input("Call 2 Premium", min_value=0.0, value=100.0)
-    
+
     # Calculate Iron Condor P&L
     iron_condor_premium = iron_condor_pnl(data['Close'].iloc[-1], 
                                           (lower_put_strike, higher_put_strike, lower_call_strike, higher_call_strike), 
@@ -212,7 +210,7 @@ def main():
     lower_premium = st.number_input("Lower Strike Premium", min_value=0.0, value=100.0)
     middle_premium = st.number_input("Middle Strike Premium", min_value=0.0, value=200.0)
     higher_premium = st.number_input("Higher Strike Premium", min_value=0.0, value=100.0)
-    
+
     # Calculate Butterfly Spread P&L
     butterfly_premium = butterfly_spread_pnl(data['Close'].iloc[-1], 
                                              (lower_strike_butterfly, middle_strike, higher_strike_butterfly), 
@@ -223,7 +221,7 @@ def main():
     st.subheader("Gamma Scalping Adjustment")
     option_delta = st.number_input("Option Delta", value=0.0)
     underlying_position = st.number_input("Underlying Position", value=0.0)
-    
+
     # Calculate Gamma Scalping Adjustment
     adjustment = gamma_scalping(data['Close'].iloc[-1], option_delta, underlying_position)
     st.write(f"Gamma Scalping Adjustment: {adjustment:.2f}")
@@ -234,14 +232,20 @@ def main():
 
     # Plot the data
     fig = go.Figure()
+
+    # Check if columns exist before adding traces
+    if 'MA5' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
+
+    if 'MA10' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
+
     fig.add_trace(go.Candlestick(x=data.index,
                                  open=data['Open'],
                                  high=data['High'],
                                  low=data['Low'],
                                  close=data['Close'],
                                  name='Candlestick'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
 
     st.plotly_chart(fig)
 
