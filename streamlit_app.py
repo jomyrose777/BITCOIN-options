@@ -8,7 +8,6 @@ from datetime import datetime
 import plotly.graph_objects as go
 import requests
 from typing import Dict, Tuple, List
-import time
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
@@ -22,7 +21,6 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
     return timestamp.tz_localize(pytz.utc).tz_convert(est)
 
 # Fetch live data from Yahoo Finance
-@st.cache_data(ttl=60)  # Cache data for 60 seconds
 def fetch_data(ticker: str) -> pd.DataFrame:
     """Fetch historical data from Yahoo Finance."""
     try:
@@ -71,14 +69,7 @@ def calculate_support_resistance(data: pd.DataFrame, window: int = 5) -> pd.Data
     data['Resistance'] = data['High'].rolling(window=window).max()
     return data
 
-# Calculate moving averages and ensure they are added to DataFrame
-def calculate_moving_averages(data: pd.DataFrame) -> pd.DataFrame:
-    """Calculate and add moving averages to DataFrame."""
-    data['MA5'] = data['Close'].rolling(window=5).mean()
-    data['MA10'] = data['Close'].rolling(window=10).mean()
-    return data
-
-# Generate buy/sell signals based on indicators and moving averages
+# Generate trading signals based on indicators and moving averages
 def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, float]) -> Dict[str, str]:
     """Generate trading signals based on indicators and moving averages."""
     def get_signal(value, buy_threshold, sell_threshold):
@@ -94,49 +85,55 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
     signals = {
         'timestamp': current_time_est.strftime('%Y-%m-%d %I:%M:%S %p'),
         'RSI': get_signal(indicators['RSI'], 30, 70),
-        'MACD': 'Buy' if indicators['MACD'] > indicators['MACD_Signal'] else 'Sell',
+        'MACD': 'Buy' if indicators['MACD'] > 0 else 'Sell',
         'ADX': 'Buy' if indicators['ADX'] > 25 else 'Neutral',
         'CCI': get_signal(indicators['CCI'], -100, 100),
         'MA': 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
     }
     return signals
 
-def generate_perpetual_options_decision(signals: Dict[str, str], moving_averages: Dict[str, float],
-                                        fib_levels: List[float], high: float, low: float, 
-                                        current_price: float) -> str:
-    """Generate a decision for perpetual options trading based on indicators, moving averages, and Fibonacci levels."""
-    decision = 'Neutral'
+# Iron Condor P&L Calculation
+def iron_condor_pnl(current_price: float, strikes: Tuple[float, float, float, float],
+                    premiums: Tuple[float, float, float, float]) -> float:
+    """Calculate Iron Condor profit and loss."""
+    lower_put_strike, higher_put_strike, lower_call_strike, higher_call_strike = strikes
+    put1_premium, put2_premium, call1_premium, call2_premium = premiums
     
-    # Define resistance levels for decision making
-    resistance_levels = [fib_levels[3], fib_levels[4], high]
-
-    # Check if the current price is above any resistance levels
-    if any(current_price >= level for level in resistance_levels):
-        decision = 'Go Short'
+    if current_price < lower_put_strike:
+        pnl = put1_premium + put2_premium - (lower_put_strike - current_price)
+    elif current_price > higher_call_strike:
+        pnl = call1_premium + call2_premium - (current_price - higher_call_strike)
+    elif current_price < higher_put_strike:
+        pnl = put1_premium - (lower_put_strike - current_price)
+    elif current_price > lower_call_strike:
+        pnl = call1_premium - (current_price - lower_call_strike)
     else:
-        buy_signals = [value for key, value in signals.items() if value == 'Buy']
-        sell_signals = [value for key, value in signals.items() if value == 'Sell']
+        pnl = put1_premium + call1_premium - (current_price - lower_put_strike) - (higher_call_strike - current_price)
+    
+    return pnl
 
-        if len(buy_signals) > len(sell_signals):
-            decision = 'Go Long'
-        elif len(sell_signals) > len(buy_signals):
-            decision = 'Go Short'
+# Gamma Scalping Adjustment
+def gamma_scalping(current_price: float, option_delta: float, underlying_position: float) -> float:
+    """Adjust the hedge to remain delta-neutral."""
+    target_position = -option_delta
+    adjustment = target_position - underlying_position
+    return adjustment
 
-    return decision
-
-# Determine entry point
-def determine_entry_point(signals: Dict[str, str]) -> str:
-    """Determine the entry point for trading based on signals."""
-    if (signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and signals['ADX'] == 'Buy'):
-        return 'Buy Now'
-    elif (signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell' and signals['ADX'] == 'Sell'):
-        return 'Sell Now'
-    elif (signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy'):
-        return 'Potential Buy Opportunity'
-    elif (signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell'):
-        return 'Potential Sell Opportunity'
+# Butterfly Spread P&L Calculation
+def butterfly_spread_pnl(current_price: float, strikes: Tuple[float, float, float],
+                        premiums: Tuple[float, float, float]) -> float:
+    """Calculate Butterfly Spread profit and loss."""
+    lower_strike, middle_strike, higher_strike = strikes
+    lower_premium, middle_premium, higher_premium = premiums
+    
+    if current_price < lower_strike or current_price > higher_strike:
+        pnl = - (lower_premium + higher_premium - middle_premium)
+    elif current_price < middle_strike:
+        pnl = (current_price - lower_strike) - (middle_strike - lower_strike) - lower_premium
     else:
-        return 'Neutral or No Clear Entry Point'
+        pnl = (higher_strike - current_price) - (higher_strike - middle_strike) - higher_premium
+    
+    return pnl
 
 # Fetch Fear and Greed Index
 def fetch_fear_and_greed_index() -> Tuple[str, str]:
@@ -153,74 +150,100 @@ def fetch_fear_and_greed_index() -> Tuple[str, str]:
         return 'N/A', 'N/A'
 
 def main():
-    while True:
-        # Fetch and prepare data
-        data = fetch_data(ticker)
-        if data.empty:
-            st.stop()
+    st.title("Options Trading Strategies")
 
-        # Calculate indicators and levels
-        data = calculate_indicators(data)
-        data = detect_doji(data)
-        high = data['High'].max()
-        low = data['Low'].min()
-        fib_levels = fibonacci_retracement(high, low)
-        data = calculate_support_resistance(data)
-        data = calculate_moving_averages(data)
+    # Fetch and prepare data
+    data = fetch_data(ticker)
+    if data.empty:
+        st.stop()
 
-        # Calculate moving averages
-        moving_averages = {
-            'MA5': data['MA5'].iloc[-1],
-            'MA10': data['MA10'].iloc[-1]
-        }
+    # Calculate indicators and levels
+    data = calculate_indicators(data)
+    data = detect_doji(data)
+    high = data['High'].max()
+    low = data['Low'].min()
+    fib_levels = fibonacci_retracement(high, low)
+    data = calculate_support_resistance(data)
 
-        # Retrieve indicators
-        indicators = {
-            'RSI': data['RSI'].iloc[-1],
-            'MACD': data['MACD'].iloc[-1],
-            'MACD_Signal': data['MACD_Signal'].iloc[-1],
-            'STOCH': data['STOCH'].iloc[-1],
-            'ADX': data['ADX'].iloc[-1],
-            'CCI': data['CCI'].iloc[-1],
-            'ROC': data['ROC'].iloc[-1],
-            'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
-        }
+    # Calculate moving averages
+    moving_averages = {
+        'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
+        'MA10': data['Close'].rolling(window=10).mean().iloc[-1]
+    }
 
-        current_price = data['Close'].iloc[-1]
+    # Retrieve indicators
+    indicators = {
+        'RSI': data['RSI'].iloc[-1],
+        'MACD': data['MACD'].iloc[-1],
+        'MACD_Signal': data['MACD_Signal'].iloc[-1],
+        'STOCH': data['STOCH'].iloc[-1],
+        'ADX': data['ADX'].iloc[-1],
+        'CCI': data['CCI'].iloc[-1],
+        'ROC': data['ROC'].iloc[-1],
+        'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
+    }
 
-        # Generate trading signals
-        signals = generate_signals(indicators, moving_averages)
+    # Generate signals
+    signals = generate_signals(indicators, moving_averages)
+    st.write("Trading Signals:", signals)
 
-        # Generate trading decision
-        decision = generate_perpetual_options_decision(signals, moving_averages, fib_levels, high, low, current_price)
+    # Input fields for Iron Condor
+    st.subheader("Iron Condor Strategy")
+    lower_put_strike = st.number_input("Lower Put Strike Price", min_value=0.0, value=40000.0)
+    higher_put_strike = st.number_input("Higher Put Strike Price", min_value=0.0, value=39000.0)
+    lower_call_strike = st.number_input("Lower Call Strike Price", min_value=0.0, value=41000.0)
+    higher_call_strike = st.number_input("Higher Call Strike Price", min_value=0.0, value=42000.0)
+    put1_premium = st.number_input("Put 1 Premium", min_value=0.0, value=100.0)
+    put2_premium = st.number_input("Put 2 Premium", min_value=0.0, value=100.0)
+    call1_premium = st.number_input("Call 1 Premium", min_value=0.0, value=100.0)
+    call2_premium = st.number_input("Call 2 Premium", min_value=0.0, value=100.0)
+    
+    # Calculate Iron Condor P&L
+    iron_condor_premium = iron_condor_pnl(data['Close'].iloc[-1], 
+                                          (lower_put_strike, higher_put_strike, lower_call_strike, higher_call_strike), 
+                                          (put1_premium, put2_premium, call1_premium, call2_premium))
+    st.write(f"Iron Condor P&L: ${iron_condor_premium:.2f}")
 
-        # Display results
-        st.write(f"Current Price: ${current_price:.2f}")
-        st.write(f"Decision: {decision}")
-        st.write(f"Signals: {signals}")
-        st.write(f"Fear and Greed Index: {fetch_fear_and_greed_index()}")
+    # Input fields for Butterfly Spread
+    st.subheader("Butterfly Spread Strategy")
+    lower_strike_butterfly = st.number_input("Lower Strike Price", min_value=0.0, value=40000.0)
+    middle_strike = st.number_input("Middle Strike Price", min_value=0.0, value=40500.0)
+    higher_strike_butterfly = st.number_input("Higher Strike Price", min_value=0.0, value=41000.0)
+    lower_premium = st.number_input("Lower Strike Premium", min_value=0.0, value=100.0)
+    middle_premium = st.number_input("Middle Strike Premium", min_value=0.0, value=200.0)
+    higher_premium = st.number_input("Higher Strike Premium", min_value=0.0, value=100.0)
+    
+    # Calculate Butterfly Spread P&L
+    butterfly_premium = butterfly_spread_pnl(data['Close'].iloc[-1], 
+                                             (lower_strike_butterfly, middle_strike, higher_strike_butterfly), 
+                                             (lower_premium, middle_premium, higher_premium))
+    st.write(f"Butterfly Spread P&L: ${butterfly_premium:.2f}")
 
-        # Plot data
-        fig = go.Figure()
+    # Gamma Scalping Input
+    st.subheader("Gamma Scalping Adjustment")
+    option_delta = st.number_input("Option Delta", value=0.0)
+    underlying_position = st.number_input("Underlying Position", value=0.0)
+    
+    # Calculate Gamma Scalping Adjustment
+    adjustment = gamma_scalping(data['Close'].iloc[-1], option_delta, underlying_position)
+    st.write(f"Gamma Scalping Adjustment: {adjustment:.2f}")
 
-        fig.add_trace(go.Candlestick(x=data.index,
-                                     open=data['Open'],
-                                     high=data['High'],
-                                     low=data['Low'],
-                                     close=data['Close'],
-                                     name='Candlestick'))
+    # Display latest news and Fear & Greed Index
+    fear_and_greed_index, classification = fetch_fear_and_greed_index()
+    st.write(f"Fear and Greed Index: {fear_and_greed_index} ({classification})")
 
-        # Add technical indicators to the plot
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
+    # Plot the data
+    fig = go.Figure()
+    fig.add_trace(go.Candlestick(x=data.index,
+                                 open=data['Open'],
+                                 high=data['High'],
+                                 low=data['Low'],
+                                 close=data['Close'],
+                                 name='Candlestick'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
 
-        fig.update_layout(title='BTC-USD Price and Indicators',
-                          xaxis_title='Time',
-                          yaxis_title='Price')
-        st.plotly_chart(fig)
-
-        # Delay to prevent excessive requests
-        time.sleep(60)
+    st.plotly_chart(fig)
 
 if __name__ == "__main__":
     main()
