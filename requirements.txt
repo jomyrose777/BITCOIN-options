@@ -1,11 +1,9 @@
-
 streamlit
 yfinance
 pandas
 numpy
+ta
 plotly
 requests
 scikit-learn
-ta
 pytz
-time
