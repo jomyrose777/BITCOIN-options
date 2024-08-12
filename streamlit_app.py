@@ -176,12 +176,12 @@ else:
             call_strike_long = current_price + 6000
 
             # Entry signal
-            entry_signal = 'Hold'
+            entry_signal = 'Neutral'
             if put_strike_short < current_price < call_strike_short:
                 entry_signal = 'Entry'
 
             # Stop-loss and Take-profit levels
-            stop_loss = min(current_price - put_strike_short, call_strike_long - current_price)
+            stop_loss = max(current_price - put_strike_short, call_strike_long - current_price)
             take_profit = (call_strike_short - put_strike_short) - (2 * stop_loss)
 
             return {
@@ -225,9 +225,15 @@ else:
         st.subheader('Trade Decision')
         st.write(f"Trade Recommendation: {trade_decision}")
 
-        st.subheader('Fear and Greed Index')
-        st.write(f"Value: {fear_and_greed_value}")
-        st.write(f"Classification: {fear_and_greed_classification}")
+        # Assuming the Fear and Greed Index is fetched from an API or similar source
+        try:
+            fear_and_greed_value = 50  # Replace with actual value from API or data source
+            fear_and_greed_classification = "Neutral"  # Replace with classification based on actual value
+            st.subheader('Fear and Greed Index')
+            st.write(f"Value: {fear_and_greed_value}")
+            st.write(f"Classification: {fear_and_greed_classification}")
+        except Exception as e:
+            st.error(f"Error fetching Fear and Greed Index: {e}")
 
         # Calculate signal accuracy
         actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
