@@ -238,30 +238,36 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     
     if 'Error' in signals:
         st.error("Error generating weighted signals.")
-        return 'Error', 0, 0
-
+        return 'Error', 0, 0, 0, 0
+    
     buy_signals = [value for key, value in signals.items() if value == 'Buy']
     sell_signals = [value for key, value in signals.items() if value == 'Sell']
     
     if len(buy_signals) > len(sell_signals):
         decision = 'Go Long'
+        take_profit_pct = 0.02
+        stop_loss_pct = 0.01
     elif len(sell_signals) > len(buy_signals):
         decision = 'Go Short'
+        take_profit_pct = -0.02
+        stop_loss_pct = 0.01
     else:
         decision = 'Neutral'
-    
-    take_profit_pct = 0.05 if decision == 'Go Long' else 0
-    stop_loss_pct = 0.03 if decision == 'Go Long' else 0
+        take_profit_pct = 0
+        stop_loss_pct = 0
     
     entry_point = data['Close'].iloc[-1]
-    take_profit = entry_point * (1 + take_profit_pct)
-    stop_loss = entry_point * (1 - stop_loss_pct)
+    take_profit_level = entry_point * (1 + take_profit_pct)
+    stop_loss_level = entry_point * (1 - stop_loss_pct)  # Corrected calculation for stop loss
+
+    # Log the signals with the calculated values
+    log_signals(signals, decision, entry_point, take_profit_level, stop_loss_level)
     
-    log_signals(signals, decision, entry_point, take_profit, stop_loss)
-    
+    # Calculate accuracy of signals
     accuracy = calculate_accuracy()
     
-    return decision, entry_point, take_profit, stop_loss, accuracy
+    return decision, entry_point, take_profit_level, stop_loss_level, accuracy
+
 
 # Main app logic
 st.title("Bitcoin Trading Signals")
