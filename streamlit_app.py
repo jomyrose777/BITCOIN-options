@@ -25,7 +25,7 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
 def fetch_data(ticker: str) -> pd.DataFrame:
     """Fetch historical data from Yahoo Finance."""
     try:
-        data = yf.download(ticker, period='1d', interval='30m')
+        data = yf.download(ticker, period='3d', interval='30m')  # Increase period to 3 days
         if data.index.tzinfo is None:
             data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
         else:
