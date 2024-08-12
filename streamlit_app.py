@@ -94,7 +94,7 @@ def moving_averages_summary(data):
     return ma
 
 # Function to generate buy/sell signals based on indicators and moving averages
-def generate_signals(indicators, moving_averages):
+def generate_signals(indicators, moving_averages, data):
     signals = {}
     try:
         last_timestamp = to_est(data.index[-1])
@@ -157,8 +157,8 @@ def fetch_fear_and_greed_index():
     return latest_data['value'], latest_data['value_classification']
 
 # Function to generate a perpetual options decision
-def generate_perpetual_options_decision(indicators, moving_averages):
-    signals = generate_signals(indicators, moving_averages)
+def generate_perpetual_options_decision(indicators, moving_averages, data):
+    signals = generate_signals(indicators, moving_averages, data)
     
     # Decision logic
     buy_signals = [value for key, value in signals.items() if value == 'Buy']
@@ -206,16 +206,14 @@ def update_data():
         # Generate summaries
         indicators = technical_indicators_summary(data)
         moving_averages = moving_averages_summary(data)
-        signals = generate_signals(indicators, moving_averages)
+        signals = generate_signals(indicators, moving_averages, data)
         log_signals(signals)
         fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
-        decision, entry_point = generate_perpetual_options_decision(indicators, moving_averages)
-
-        # Define take profit and stop loss percentages
-        take_profit_pct = 0.03  # Example: 3%
-        stop_loss_pct = 0.02    # Example: 2%
-
+        decision, entry_point = generate_perpetual_options_decision(indicators, moving_averages, data)
+        
         # Calculate take profit and stop loss levels
+        take_profit_pct = 0.02
+        stop_loss_pct = 0.01
         take_profit_level = entry_point * (1 + take_profit_pct)
         stop_loss_level = entry_point * (1 - stop_loss_pct)
 
