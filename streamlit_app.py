@@ -37,16 +37,28 @@ def fetch_data(ticker: str) -> pd.DataFrame:
 # Calculate technical indicators using the ta library
 def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate technical indicators."""
-    data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
-    macd = ta.trend.MACD(data['Close'])
-    data['MACD'] = macd.macd()
-    data['MACD_Signal'] = macd.macd_signal()
-    data['STOCH'] = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close']).stoch()
-    data['ADX'] = ta.trend.ADXIndicator(data['High'], data['Low'], data['Close']).adx()
-    data['CCI'] = ta.trend.CCIIndicator(data['High'], data['Low'], data['Close']).cci()
-    data['ROC'] = ta.momentum.ROCIndicator(data['Close']).roc()
-    data['WILLIAMSR'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
+    # Ensure there are enough data points
+    if len(data) < 14:
+        st.error("Not enough data to calculate indicators. Please check the data length.")
+        return data
+    
+    data = data.dropna()
+
+    try:
+        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
+        macd = ta.trend.MACD(data['Close'])
+        data['MACD'] = macd.macd()
+        data['MACD_Signal'] = macd.macd_signal()
+        data['STOCH'] = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close']).stoch()
+        data['ADX'] = ta.trend.ADXIndicator(data['High'], data['Low'], data['Close']).adx()
+        data['CCI'] = ta.trend.CCIIndicator(data['High'], data['Low'], data['Close']).cci()
+        data['ROC'] = ta.momentum.ROCIndicator(data['Close']).roc()
+        data['WILLIAMSR'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
+    except Exception as e:
+        st.error(f"Error calculating indicators: {e}")
+    
     return data
+
 
 # Calculate Fibonacci retracement levels
 def fibonacci_retracement(high: float, low: float) -> List[float]:
