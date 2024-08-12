@@ -6,7 +6,6 @@ import ta
 import pytz
 from datetime import datetime
 import plotly.graph_objects as go
-from typing import Dict
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
@@ -19,7 +18,7 @@ def to_est(dt):
     return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
 # Function to calculate signal accuracy
-def calculate_signal_accuracy(signals: Dict[str, str], actual: Dict[str, str] = {}) -> float:
+def calculate_signal_accuracy(signals, actual):
     """Calculate accuracy of signals."""
     correct_signals = sum(1 for key in signals if signals[key] == actual.get(key, 'Neutral'))
     return correct_signals / len(signals) if signals else 0.0
@@ -182,7 +181,7 @@ else:
 
             # Stop-loss and Take-profit levels
             stop_loss = max(abs(current_price - put_strike_short), abs(call_strike_short - current_price))
-            take_profit = min(abs(current_price - put_strike_long), abs(call_strike_long - current_price))
+            take_profit = max(abs(current_price - put_strike_long), abs(call_strike_long - current_price))
 
             return {
                 'Entry Signal': entry_signal,
@@ -190,7 +189,6 @@ else:
                 'Take-Profit': take_profit
             }
 
-        # Execute Iron Condor Strategy
         iron_condor_signals = iron_condor_strategy(data)
 
         # Decision Logic for Going Long or Short
