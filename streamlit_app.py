@@ -14,7 +14,7 @@ def refresh_app():
         # Refresh the app
         st.experimental_rerun()
         # Wait for 60 seconds before refreshing again
-        time.sleep(60)
+        time.sleep(30)
 
 # Run the refresh function in a background thread
 if st.session_state.get("refresh_started", False) is False:
