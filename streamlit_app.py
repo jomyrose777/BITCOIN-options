@@ -34,10 +34,14 @@ def fetch_data(ticker: str) -> pd.DataFrame:
         st.error(f"Error fetching data: {e}")
         return pd.DataFrame()
 
+# Check DataFrame columns
+def check_data_columns(data: pd.DataFrame) -> None:
+    """Print and check the columns of the DataFrame."""
+    st.write("DataFrame columns:", data.columns)
+
 # Calculate technical indicators using the ta library
 def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate technical indicators."""
-    # Ensure there are enough data points
     if len(data) < 14:
         st.error("Not enough data to calculate indicators. Please check the data length.")
         return data
@@ -58,7 +62,6 @@ def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
         st.error(f"Error calculating indicators: {e}")
     
     return data
-
 
 # Calculate Fibonacci retracement levels
 def fibonacci_retracement(high: float, low: float) -> List[float]:
@@ -96,11 +99,11 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
 
     signals = {
         'timestamp': current_time_est.strftime('%Y-%m-%d %I:%M:%S %p'),
-        'RSI': get_signal(indicators['RSI'], 30, 70),
-        'MACD': 'Buy' if indicators['MACD'] > 0 else 'Sell',
-        'ADX': 'Buy' if indicators['ADX'] > 25 else 'Neutral',
-        'CCI': get_signal(indicators['CCI'], -100, 100),
-        'MA': 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
+        'RSI': get_signal(indicators.get('RSI', float('nan')), 30, 70),
+        'MACD': 'Buy' if indicators.get('MACD', float('nan')) > 0 else 'Sell',
+        'ADX': 'Buy' if indicators.get('ADX', float('nan')) > 25 else 'Neutral',
+        'CCI': get_signal(indicators.get('CCI', float('nan')), -100, 100),
+        'MA': 'Buy' if moving_averages.get('MA5', float('nan')) > moving_averages.get('MA10', float('nan')) else 'Sell'
     }
     return signals
 
@@ -175,6 +178,9 @@ def main():
     if data.empty:
         st.stop()
 
+    # Check columns for debugging
+    check_data_columns(data)
+
     # Calculate indicators and levels
     data = calculate_indicators(data)
     data = detect_doji(data)
@@ -189,63 +195,83 @@ def main():
 
     # Retrieve indicators
     indicators = {
-        'RSI': data['RSI'].iloc[-1],
-        'MACD': data['MACD'].iloc[-1],
-        'MACD_Signal': data['MACD_Signal'].iloc[-1],
-        'STOCH': data['STOCH'].iloc[-1],
-        'ADX': data['ADX'].iloc[-1],
-        'CCI': data['CCI'].iloc[-1],
-        'ROC': data['ROC'].iloc[-1],
-        'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
+        'RSI': data['RSI'].iloc[-1] if 'RSI' in data.columns else float('nan'),
+        'MACD': data['MACD'].iloc[-1] if 'MACD' in data.columns else float('nan'),
+        'ADX': data['ADX'].iloc[-1] if 'ADX' in data.columns else float('nan'),
+        'CCI': data['CCI'].iloc[-1] if 'CCI' in data.columns else float('nan'),
+        'WILLIAMSR': data['WILLIAMSR'].iloc[-1] if 'WILLIAMSR' in data.columns else float('nan')
     }
+
+    # Retrieve moving averages
     moving_averages = {
-        'MA5': data['MA5'].iloc[-1],
-        'MA10': data['MA10'].iloc[-1]
+        'MA5': data['MA5'].iloc[-1] if 'MA5' in data.columns else float('nan'),
+        'MA10': data['MA10'].iloc[-1] if 'MA10' in data.columns else float('nan')
     }
 
+    # Generate trading signals
     signals = generate_signals(indicators, moving_averages)
-    accuracy = calculate_signal_accuracy(signals)
 
-    # Get user input for entry price, stop loss, and current price
-    entry_price = st.number_input("Enter Entry Price:", min_value=0.0, format="%.2f")
-    stop_loss = st.number_input("Enter Stop Loss:", min_value=0.0, format="%.2f")
-    current_price = st.number_input("Enter Current Price:", min_value=0.0, format="%.2f")
+    # Display indicators and signals
+    st.write("Indicators:")
+    st.write(indicators)
+    st.write("Signals:")
+    st.write(signals)
 
-    if entry_price and current_price:
-        # Determine position
-        if current_price > entry_price:
-            position = "Long"
-            pnl = current_price - entry_price - stop_loss
-        else:
-            position = "Short"
-            pnl = entry_price - current_price - stop_loss
-        
-        st.write(f"Current Position: {position}")
-        st.write(f"Potential P&L: {pnl:.2f}")
-
-    # Fetch and display Fear and Greed Index
+    # Fetch Fear and Greed Index
     fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
     st.write(f"Fear and Greed Index: {fear_and_greed_value} ({fear_and_greed_classification})")
 
-    # Display the signals and accuracy
-    st.write("Signals:")
-    for key, value in signals.items():
-        st.write(f"{key}: {value}")
-
-    st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
-
-    # Display data with plotly
+    # Plotting
     fig = go.Figure()
+
+    # Add traces for candlestick chart
     fig.add_trace(go.Candlestick(x=data.index,
-                                 open=data['Open'],
-                                 high=data['High'],
-                                 low=data['Low'],
-                                 close=data['Close'],
-                                 name="Candlestick"))
-    fig.update_layout(title="Bitcoin Price Data",
-                      xaxis_title="Date",
-                      yaxis_title="Price")
+                                open=data['Open'],
+                                high=data['High'],
+                                low=data['Low'],
+                                close=data['Close'],
+                                name='Candlestick'))
+
+    # Add moving averages
+    if 'MA5' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
+    if 'MA10' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
+
+    # Add Fibonacci retracement levels
+    for level in fib_levels:
+        fig.add_trace(go.Scatter(x=[data.index.min(), data.index.max()], y=[level, level],
+                                 mode='lines', name=f'Fib Level {level:.2f}'))
+
+    # Update layout
+    fig.update_layout(title='Bitcoin Price and Technical Indicators',
+                      xaxis_title='Date',
+                      yaxis_title='Price')
+
     st.plotly_chart(fig)
+
+    # Trading strategies and P&L calculations
+    current_price = data['Close'].iloc[-1]
+    strikes = (10000, 10500, 9500, 11000)
+    premiums = (100, 150, 200, 250)
+    pnl = iron_condor_pnl(current_price, strikes, premiums)
+    st.write(f"Iron Condor P&L: {pnl:.2f}")
+
+    # Gamma Scalping
+    option_delta = 0.5
+    underlying_position = 0
+    adjustment = gamma_scalping(current_price, option_delta, underlying_position)
+    st.write(f"Gamma Scalping Adjustment: {adjustment:.2f}")
+
+    # Butterfly Spread P&L
+    butterfly_strikes = (9500, 10000, 10500)
+    butterfly_premiums = (50, 150, 50)
+    butterfly_pnl = butterfly_spread_pnl(current_price, butterfly_strikes, butterfly_premiums)
+    st.write(f"Butterfly Spread P&L: {butterfly_pnl:.2f}")
+
+    # Calculate signal accuracy
+    accuracy = calculate_signal_accuracy(signals)
+    st.write(f"Signal Accuracy: {accuracy:.2f}")
 
 if __name__ == "__main__":
     main()
