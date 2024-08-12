@@ -165,9 +165,9 @@ def fetch_fear_and_greed_index() -> Tuple[str, str]:
         st.error(f"Error fetching Fear and Greed Index: {e}")
         return 'N/A', 'N/A'
 
-# Calculate signal accuracy (dummy function for example)
+# Calculate signal accuracy
 def calculate_signal_accuracy(signals: Dict[str, str], actual: Dict[str, str] = {}) -> float:
-    """Calculate accuracy of signals. Placeholder implementation."""
+    """Calculate accuracy of signals."""
     correct_signals = sum(1 for key in signals if signals[key] == actual.get(key, 'Neutral'))
     return correct_signals / len(signals) if signals else 0.0
 
@@ -224,10 +224,30 @@ def main():
     st.write("Suggested Trade Action:")
     st.write(trade_action)
     
-    # Display backtesting results and accuracy metrics
+   # Display backtesting results and accuracy metrics
     actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
     accuracy = calculate_signal_accuracy(signals, actual_signals)
     st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
+    
+    # Store actual market outcomes
+    actual_outcomes = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
+    
+    # Compare signals with actual outcomes
+    win_loss_ratio = 0
+    for signal in signals:
+        if signals[signal] == actual_outcomes.get(signal):
+            win_loss_ratio += 1
+        else:
+            win_loss_ratio -= 1
+    
+    # Update accuracy percentage
+    accuracy_percentage = (win_loss_ratio / len(signals)) * 100
+    
+    # Display performance metrics
+    st.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
+    st.write(f"Accuracy Percentage: {accuracy_percentage:.2f}%")
 
+if __name__ == '__main__':
+    main()
 if __name__ == '__main__':
     main()
