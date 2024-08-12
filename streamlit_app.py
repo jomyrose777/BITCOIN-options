@@ -129,6 +129,7 @@ def generate_weighted_signals(indicators, moving_averages, data):
         for key, value in signals.items()
     ])
     
+    st.write("Signals:", signals)  # Debugging line
     st.write("Weighted Score:", weighted_score)  # Debugging line
     
     if weighted_score > 0:
@@ -207,22 +208,23 @@ def fetch_fear_and_greed_index():
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
     signals = generate_weighted_signals(indicators, moving_averages, data)
     
-    # Decision logic
+    if not isinstance(signals, dict):
+        st.error("Error: Signals is not a dictionary.")
+        return 'Error', None, None
+
+    # Decision making
     buy_signals = [value for key, value in signals.items() if value == 'Buy']
     sell_signals = [value for key, value in signals.items() if value == 'Sell']
     
     if len(buy_signals) > len(sell_signals):
         decision = 'Go Long'
-        take_profit_pct = 0.02
-        stop_loss_pct = 0.01
     elif len(sell_signals) > len(buy_signals):
         decision = 'Go Short'
-        take_profit_pct = -0.02  # Note the negative sign
-        stop_loss_pct = 0.01
     else:
         decision = 'Neutral'
-        take_profit_pct = 0
-        stop_loss_pct = 0
+    
+    take_profit_pct = 0.05 if decision == 'Go Long' else 0
+    stop_loss_pct = 0.03 if decision == 'Go Long' else 0
     
     entry_point = data['Close'].iloc[-1]
     take_profit = entry_point * (1 + take_profit_pct)
