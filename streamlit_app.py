@@ -6,7 +6,6 @@ import ta
 import pytz
 from datetime import datetime
 import plotly.graph_objects as go
-import requests
 from typing import Dict
 
 # Define the ticker symbol for Bitcoin
@@ -193,6 +192,18 @@ else:
 
         iron_condor_signals = iron_condor_strategy(data)
 
+        # Decision Logic for Going Long or Short
+        def decision_logic(signals, iron_condor_signals):
+            """Determine whether to go long or short based on signals."""
+            decision = 'Neutral'
+            if signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and iron_condor_signals['Entry Signal'] == 'Entry':
+                decision = 'Go Long'
+            elif signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell' and iron_condor_signals['Entry Signal'] == 'Entry':
+                decision = 'Go Short'
+            return decision
+
+        trade_decision = decision_logic(signals, iron_condor_signals)
+
         # Display results in the Streamlit app
         st.subheader('Technical Indicators')
         for key, value in indicators.items():
@@ -210,6 +221,9 @@ else:
         st.write(f"Entry Signal: {iron_condor_signals['Entry Signal']}")
         st.write(f"Stop-Loss: {iron_condor_signals['Stop-Loss']:.2f}")
         st.write(f"Take-Profit: {iron_condor_signals['Take-Profit']:.2f}")
+
+        st.subheader('Trade Decision')
+        st.write(f"Trade Recommendation: {trade_decision}")
 
         st.subheader('Fear and Greed Index')
         st.write(f"Value: {fear_and_greed_value}")
