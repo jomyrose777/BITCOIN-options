@@ -179,9 +179,11 @@ def generate_perpetual_options_decision(indicators, moving_averages, data):
 
     entry_point = data['Close'].iloc[-1]
     take_profit_level = entry_point * (1 + take_profit_pct)
-    stop_loss_level = entry_point * (1 - stop_loss_pct)  # Fixed stop loss calculation
+    stop_loss_level = entry_point * (1 - stop_loss_pct)  # Corrected calculation
 
     return decision, entry_point, take_profit_level, stop_loss_level
+
+
 
 
 # Function to calculate signal accuracy
