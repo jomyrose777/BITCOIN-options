@@ -195,20 +195,49 @@ def log_signals(signals, decision, entry_point, take_profit, stop_loss):
     logs = pd.concat([new_log, logs], ignore_index=True)
     logs.to_csv(log_file, index=False)
 
+# Function to calculate accuracy of signals
+def calculate_accuracy():
+    log_file = 'signals_log.csv'
+    try:
+        logs = pd.read_csv(log_file)
+    except FileNotFoundError:
+        return 0.0
+
+    correct_signals = 0
+    total_signals = len(logs)
+    
+    if total_signals == 0:
+        return 0.0
+
+    for index, row in logs.iterrows():
+        # Here you should add your logic to check if the decision was correct based on historical data
+        # For demonstration, let's assume a placeholder for accuracy calculation
+        # Replace the following logic with real accuracy calculation
+        if row['Decision'] == 'Go Long':  # Placeholder condition
+            correct_signals += 1
+    
+    return correct_signals / total_signals * 100
+
 # Function to fetch Fear and Greed Index
 def fetch_fear_and_greed_index():
-    url = "https://api.alternative.me/fng/"
-    response = requests.get(url)
-    data = response.json()
-    latest_data = data['data'][0]
-    return latest_data['value'], latest_data['value_classification']
+    url = 'https://api.alternative.me/fng/?limit=1'
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        fear_and_greed_index = data['data'][0]['value']
+        classification = data['data'][0]['value_classification']
+        return fear_and_greed_index, classification
+    except Exception as e:
+        st.error(f"Error fetching Fear and Greed Index: {e}")
+        return None, None
 
-# Function to generate a perpetual options decision
+# Function to generate trading decision for perpetual options
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
     signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
     
-    if not isinstance(signals, dict):
-        st.error("Error: Signals is not a dictionary.")
+    if 'Error' in signals:
+        st.error("Error generating weighted signals.")
         return 'Error', 0, 0
 
     buy_signals = [value for key, value in signals.items() if value == 'Buy']
@@ -230,7 +259,9 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     
     log_signals(signals, decision, entry_point, take_profit, stop_loss)
     
-    return decision, take_profit, stop_loss
+    accuracy = calculate_accuracy()
+    
+    return decision, entry_point, take_profit, stop_loss, accuracy
 
 # Main app logic
 st.title("Bitcoin Trading Signals")
@@ -250,15 +281,17 @@ if data is not None:
     st.write("Moving Averages:")
     st.write(moving_averages)
     
-    decision, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
+    decision, entry_point, take_profit, stop_loss, accuracy = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
     
     if decision == 'Error':
         st.error("Trading Decision could not be generated.")
     else:
         st.write("Trading Decision:")
-        st.write(decision)
+        st.write(f"Decision: {decision}")
+        st.write(f"Entry Point: {entry_point:.2f}")
         st.write(f"Take Profit Level: {take_profit:.2f}")
         st.write(f"Stop Loss Level: {stop_loss:.2f}")
+        st.write(f"Accuracy: {accuracy:.2f}%")
 
         # Plot the closing price and technical indicators
         fig = go.Figure()
