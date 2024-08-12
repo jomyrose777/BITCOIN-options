@@ -165,9 +165,9 @@ def generate_perpetual_options_decision(indicators, moving_averages, data):
     sell_signals = [value for key, value in signals.items() if value == 'Sell']
     
     if len(buy_signals) > len(sell_signals):
-        decision = 'Go Long'
-    elif len(sell_signals) > len(buy_signals):
         decision = 'Go Short'
+    elif len(sell_signals) > len(buy_signals):
+        decision = 'Go Long'
     else:
         decision = 'Neutral'
     
