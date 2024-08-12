@@ -23,28 +23,28 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
 
 # Fetch live data from Yahoo Finance
 def fetch_data(ticker: str) -> pd.DataFrame:
-    """Fetch current market price and last 30 minutes of data."""
+    """Fetch the last 1 day of data from Yahoo Finance."""
     try:
         ticker_obj = yf.Ticker(ticker)
-        current_price = ticker_obj.info['regularMarketPrice']
-        print(f"Current Price: {current_price}")
+        data = yf.download(ticker, period='1d', interval='1m')
+        if data.empty:
+            st.error("No data retrieved from Yahoo Finance.")
+            return pd.DataFrame()
         
-        data = yf.download(ticker, period='30m', interval='1m')
-        print(f"Fetched data: {data.shape}")  # Print data shape
         data.reset_index(inplace=True)  # Reset index
         data['Date'] = pd.to_datetime(data['Date'])  # Convert to datetime
         data.set_index('Date', inplace=True)  # Set index
         data.index = data.index.tz_localize('UTC')  # Set timezone to UTC
         data.index = data.index.tz_convert(est)  # Convert to EST
+        
         return data
     except Exception as e:
-        print(f"Error fetching data: {e}")  # Print error message
+        st.error(f"Error fetching data: {e}")  # Print error message
         return pd.DataFrame()
-        
+
 # Calculate technical indicators using the ta library
 def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate technical indicators."""
-    # Ensure there are enough data points
     if len(data) < 14:
         st.error("Not enough data to calculate indicators. Please check the data length.")
         return data
@@ -109,47 +109,6 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
     signals['MA'] = 'Buy' if moving_averages.get('MA5', 0) > moving_averages.get('MA10', 0) else 'Sell'
 
     return signals
-
-# Iron Condor P&L Calculation
-def iron_condor_pnl(current_price: float, strikes: Tuple[float, float, float, float], premiums: Tuple[float, float, float, float]) -> float:
-    """Calculate Iron Condor profit and loss."""
-    lower_put_strike, higher_put_strike, lower_call_strike, higher_call_strike = strikes
-    put1_premium, put2_premium, call1_premium, call2_premium = premiums
-    
-    if current_price < lower_put_strike:
-        pnl = put1_premium + put2_premium - (lower_put_strike - current_price)
-    elif current_price > higher_call_strike:
-        pnl = call1_premium + call2_premium - (current_price - higher_call_strike)
-    elif current_price < higher_put_strike:
-        pnl = put1_premium - (lower_put_strike - current_price)
-    elif current_price > lower_call_strike:
-        pnl = call1_premium - (current_price - lower_call_strike)
-    else:
-        pnl = put1_premium + call1_premium - (current_price - lower_put_strike) - (higher_call_strike - current_price)
-    
-    return pnl
-
-# Gamma Scalping Adjustment
-def gamma_scalping(current_price: float, option_delta: float, underlying_position: float) -> float:
-    """Adjust the hedge to remain delta-neutral."""
-    target_position = -option_delta
-    adjustment = target_position - underlying_position
-    return adjustment
-
-# Butterfly Spread P&L Calculation
-def butterfly_spread_pnl(current_price: float, strikes: Tuple[float, float, float], premiums: Tuple[float, float, float]) -> float:
-    """Calculate Butterfly Spread profit and loss."""
-    lower_strike, middle_strike, higher_strike = strikes
-    lower_premium, middle_premium, higher_premium = premiums
-    
-    if current_price < lower_strike or current_price > higher_strike:
-        pnl = - (lower_premium + higher_premium - middle_premium)
-    elif current_price < middle_strike:
-        pnl = (current_price - lower_strike) - (middle_strike - lower_strike) - lower_premium
-    else:
-        pnl = (higher_strike - current_price) - (higher_strike - middle_strike) - higher_premium
-    
-    return pnl
 
 # Fetch Fear and Greed Index
 def fetch_fear_and_greed_index() -> Tuple[str, str]:
@@ -224,7 +183,7 @@ def main():
     st.write("Suggested Trade Action:")
     st.write(trade_action)
     
-   # Display backtesting results and accuracy metrics
+    # Display backtesting results and accuracy metrics
     actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
     accuracy = calculate_signal_accuracy(signals, actual_signals)
     st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
@@ -247,7 +206,5 @@ def main():
     st.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
     st.write(f"Accuracy Percentage: {accuracy_percentage:.2f}%")
 
-if __name__ == '__main__':
-    main()
 if __name__ == '__main__':
     main()
