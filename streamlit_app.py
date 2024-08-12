@@ -26,17 +26,17 @@ def fetch_data(ticker: str) -> pd.DataFrame:
     """Fetch the last 1 day of data from Yahoo Finance."""
     try:
         ticker_obj = yf.Ticker(ticker)
-        data = yf.download(ticker, period='1d', interval='1m')
+        data = ticker_obj.history(period='1d', interval='1m')  # Fetch data
         if data.empty:
             st.error("No data retrieved from Yahoo Finance.")
             return pd.DataFrame()
-        
+
         data.reset_index(inplace=True)  # Reset index
         data['Date'] = pd.to_datetime(data['Date'])  # Convert to datetime
         data.set_index('Date', inplace=True)  # Set index
         data.index = data.index.tz_localize('UTC')  # Set timezone to UTC
         data.index = data.index.tz_convert(est)  # Convert to EST
-        
+
         return data
     except Exception as e:
         st.error(f"Error fetching data: {e}")  # Print error message
@@ -189,22 +189,8 @@ def main():
     st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
     
     # Store actual market outcomes
-    actual_outcomes = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
-    
-    # Compare signals with actual outcomes
-    win_loss_ratio = 0
-    for signal in signals:
-        if signals[signal] == actual_outcomes.get(signal):
-            win_loss_ratio += 1
-        else:
-            win_loss_ratio -= 1
-    
-    # Update accuracy percentage
-    accuracy_percentage = (win_loss_ratio / len(signals)) * 100
-    
-    # Display performance metrics
-    st.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
-    st.write(f"Accuracy Percentage: {accuracy_percentage:.2f}%")
+    st.write("Accuracy Metrics:")
+    st.write(f"Actual Signal Accuracy: {accuracy * 100:.2f}%")
 
 if __name__ == '__main__':
     main()
