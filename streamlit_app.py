@@ -31,6 +31,11 @@ def fetch_data(ticker: str) -> pd.DataFrame:
             st.error("No data retrieved from Yahoo Finance.")
             return pd.DataFrame()
 
+        # Check if 'Date' column exists
+        if 'Date' not in data.columns:
+            st.error("'Date' column is missing from the data.")
+            return pd.DataFrame()
+
         data.reset_index(inplace=True)  # Reset index
         data['Date'] = pd.to_datetime(data['Date'])  # Convert to datetime
         data.set_index('Date', inplace=True)  # Set index
@@ -184,11 +189,7 @@ def main():
     st.write(trade_action)
     
     # Display backtesting results and accuracy metrics
-    actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
-    accuracy = calculate_signal_accuracy(signals, actual_signals)
-    st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
-    
-    # Store actual market outcomes
+    accuracy = calculate_signal_accuracy(signals)
     st.write("Accuracy Metrics:")
     st.write(f"Actual Signal Accuracy: {accuracy * 100:.2f}%")
 
