@@ -145,7 +145,7 @@ def log_signals(signals):
         logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA'])
 
     new_log = pd.DataFrame([signals])
-    logs = pd.concat([logs, new_log], ignore_index=True)
+    logs = pd.concat([new_log, logs], ignore_index=True)
     logs.to_csv(log_file, index=False)
 
 # Function to fetch Fear and Greed Index
@@ -165,9 +165,9 @@ def generate_perpetual_options_decision(indicators, moving_averages, data):
     sell_signals = [value for key, value in signals.items() if value == 'Sell']
     
     if len(buy_signals) > len(sell_signals):
-        decision = 'Go Short'
-    elif len(sell_signals) > len(buy_signals):
         decision = 'Go Long'
+    elif len(sell_signals) > len(buy_signals):
+        decision = 'Go Short'
     else:
         decision = 'Neutral'
     
@@ -210,7 +210,7 @@ def update_data():
         log_signals(signals)
         fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
         decision, entry_point = generate_perpetual_options_decision(indicators, moving_averages, data)
-        
+
         # Calculate take profit and stop loss levels
         take_profit_pct = 0.02
         stop_loss_pct = 0.01
@@ -230,6 +230,14 @@ def update_data():
         st.write(f"Entry Point: {entry_point}")
         st.write(f"Take Profit Level: {take_profit_level}")
         st.write(f"Stop Loss Level: {stop_loss_level}")
+
+        # Display previous signals
+        try:
+            logs = pd.read_csv('signals_log.csv')
+            st.write("Previous Signals")
+            st.dataframe(logs)
+        except Exception as e:
+            st.error(f"Error displaying previous signals: {e}")
 
         # Update accuracy of signals
         try:
