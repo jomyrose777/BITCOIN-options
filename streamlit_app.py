@@ -195,76 +195,43 @@ def log_signals(signals, decision, entry_point, take_profit, stop_loss):
     logs = pd.concat([new_log, logs], ignore_index=True)
     logs.to_csv(log_file, index=False)
 
-# Function to calculate accuracy of signals
-def calculate_accuracy():
-    log_file = 'signals_log.csv'
-    try:
-        logs = pd.read_csv(log_file)
-    except FileNotFoundError:
-        return 0.0
-
-    correct_signals = 0
-    total_signals = len(logs)
-    
-    if total_signals == 0:
-        return 0.0
-
-    for index, row in logs.iterrows():
-        # Here you should add your logic to check if the decision was correct based on historical data
-        # For demonstration, let's assume a placeholder for accuracy calculation
-        # Replace the following logic with real accuracy calculation
-        if row['Decision'] == 'Go Long':  # Placeholder condition
-            correct_signals += 1
-    
-    return correct_signals / total_signals * 100
-
 # Function to fetch Fear and Greed Index
 def fetch_fear_and_greed_index():
-    url = 'https://api.alternative.me/fng/?limit=1'
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        fear_and_greed_index = data['data'][0]['value']
-        classification = data['data'][0]['value_classification']
-        return fear_and_greed_index, classification
-    except Exception as e:
-        st.error(f"Error fetching Fear and Greed Index: {e}")
-        return None, None
+    url = "https://api.alternative.me/fng/"
+    response = requests.get(url)
+    data = response.json()
+    latest_data = data['data'][0]
+    return latest_data['value'], latest_data['value_classification']
 
-# Function to generate trading decision for perpetual options
+# Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
-    # Combine multiple indicators to confirm the trading decision
-    if indicators['RSI'] < 30 and indicators['MACD'] > 0 and moving_averages['MA5'] > moving_averages['MA10']:
+    signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
+    
+    if not isinstance(signals, dict):
+        st.error("Error: Signals is not a dictionary.")
+        return 'Error', 0, 0
+
+    buy_signals = [value for key, value in signals.items() if value == 'Buy']
+    sell_signals = [value for key, value in signals.items() if value == 'Sell']
+    
+    if len(buy_signals) > len(sell_signals):
         decision = 'Go Long'
-    elif indicators['RSI'] > 70 and indicators['MACD'] < 0 and moving_averages['MA5'] < moving_averages['MA10']:
+    elif len(sell_signals) > len(buy_signals):
         decision = 'Go Short'
     else:
         decision = 'Neutral'
-
-    # Set risk management parameters
-    risk_percentage = 0.02  # Risk 2% of the account balance per trade
-    position_size = account_balance * risk_percentage
-
-    # Set Stop Loss and Take Profit levels based on market conditions
-    if decision == 'Go Long':
-        take_profit_pct = 0.05  # Take profit at 5% above the entry point
-        stop_loss_pct = 0.03  # Stop loss at 3% below the entry point
-    elif decision == 'Go Short':
-        take_profit_pct = 0.05  # Take profit at 5% below the entry point
-        stop_loss_pct = 0.03  # Stop loss at 3% above the entry point
-    else:
-        take_profit_pct = 0
-        stop_loss_pct = 0
-
+    
+    take_profit_pct = 0.05 if decision == 'Go Long' else 0
+    stop_loss_pct = 0.03 if decision == 'Go Long' else 0
+    
     entry_point = data['Close'].iloc[-1]
     take_profit = entry_point * (1 + take_profit_pct)
     stop_loss = entry_point * (1 - stop_loss_pct)
+    
+    log_signals(signals, decision, entry_point, take_profit, stop_loss)
+    
+    return decision, take_profit, stop_loss
 
-    # Log the trading decision and risk management parameters
-    log_signals(indicators, decision, entry_point, take_profit, stop_loss)
-
-    return decision, entry_point, take_profit, stop_loss
 # Main app logic
 st.title("Bitcoin Trading Signals")
 
@@ -283,17 +250,15 @@ if data is not None:
     st.write("Moving Averages:")
     st.write(moving_averages)
     
-    decision, entry_point, take_profit, stop_loss, accuracy = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
+    decision, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
     
     if decision == 'Error':
         st.error("Trading Decision could not be generated.")
     else:
         st.write("Trading Decision:")
-        st.write(f"Decision: {decision}")
-        st.write(f"Entry Point: {entry_point:.2f}")
+        st.write(decision)
         st.write(f"Take Profit Level: {take_profit:.2f}")
         st.write(f"Stop Loss Level: {stop_loss:.2f}")
-        st.write(f"Accuracy: {accuracy:.2f}%")
 
         # Plot the closing price and technical indicators
         fig = go.Figure()
