@@ -7,7 +7,6 @@ import pytz
 from datetime import datetime
 import plotly.graph_objects as go
 import requests
-import time
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
@@ -96,12 +95,8 @@ def moving_averages_summary(data):
 # Function to generate buy/sell signals based on indicators and moving averages
 def generate_signals(indicators, moving_averages, data):
     signals = {}
-    try:
-        last_timestamp = to_est(data.index[-1])
-        signals['timestamp'] = last_timestamp.strftime('%Y-%m-%d %I:%M:%S %p')
-    except Exception as e:
-        st.error(f"Error processing timestamp: {e}")
-        signals['timestamp'] = 'N/A'
+    last_timestamp = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
+    signals['timestamp'] = last_timestamp
     
     # RSI Signal
     if indicators['RSI'] < 30:
@@ -112,16 +107,10 @@ def generate_signals(indicators, moving_averages, data):
         signals['RSI'] = 'Neutral'
     
     # MACD Signal
-    if indicators['MACD'] > 0:
-        signals['MACD'] = 'Buy'
-    else:
-        signals['MACD'] = 'Sell'
+    signals['MACD'] = 'Buy' if indicators['MACD'] > 0 else 'Sell'
     
     # ADX Signal
-    if indicators['ADX'] > 25:
-        signals['ADX'] = 'Buy'
-    else:
-        signals['ADX'] = 'Neutral'
+    signals['ADX'] = 'Buy' if indicators['ADX'] > 25 else 'Neutral'
     
     # CCI Signal
     if indicators['CCI'] > 100:
@@ -183,86 +172,55 @@ def generate_perpetual_options_decision(indicators, moving_averages, data):
 
     return decision, entry_point, take_profit_level, stop_loss_level
 
-
-
-
 # Function to calculate signal accuracy
 def calculate_signal_accuracy(logs, signals):
-    if len(logs) == 0:
+    if logs.empty:
         return 'N/A'
     last_signal = logs.iloc[-1]
-    accurate_signals = sum([last_signal[key] == signals[key] for key in signals if key in last_signal])
+    accurate_signals = sum([last_signal.get(key) == signals.get(key) for key in signals])
     total_signals = len(signals)
     accuracy = (accurate_signals / total_signals) * 100
     return f"{accuracy:.2f}%"
 
 # Main function to update data
 def update_data():
-    while True:
-        data = fetch_data(ticker)
-        if data is None:
-            st.stop()
+    data = fetch_data(ticker)
+    if data is None:
+        st.stop()
 
-        data = calculate_indicators(data)
-        data = calculate_support_resistance(data)
-        data = detect_doji(data)
+    data = calculate_indicators(data)
+    data = calculate_support_resistance(data)
+    data = detect_doji(data)
 
-        # Add chart to display support and resistance levels
-        st.title('Bitcoin Technical Analysis and Signal Summary')
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Support'], name='Support', line=dict(dash='dash')))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], name='Resistance', line=dict(dash='dash')))
-        fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
-        st.plotly_chart(fig)
+    # Add chart to display support and resistance levels
+    st.title('Bitcoin Technical Analysis and Signal Summary')
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Support'], name='Support', line=dict(dash='dash')))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], name='Resistance', line=dict(dash='dash')))
+    fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
+    st.plotly_chart(fig)
 
-        # Generate summaries
-        indicators = technical_indicators_summary(data)
-        moving_averages = moving_averages_summary(data)
-        signals = generate_signals(indicators, moving_averages, data)
-        log_signals(signals)
-        fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
-        decision, entry_point = generate_perpetual_options_decision(indicators, moving_averages, data)
+    # Generate summaries
+    indicators = technical_indicators_summary(data)
+    ma = moving_averages_summary(data)
+    signals = generate_signals(indicators, ma, data)
+    log_signals(signals)
+    
+    # Add Fear and Greed Index
+    fng_value, fng_class = fetch_fear_and_greed_index()
+    st.write(f"Fear and Greed Index: {fng_value} ({fng_class})")
 
-        # Calculate take profit and stop loss levels
-        take_profit_pct = 0.02
-        stop_loss_pct = 0.01
-        take_profit_level = entry_point * (1 + take_profit_pct)
-        stop_loss_level = entry_point * (1 - stop_loss_pct)
+    # Generate decision for perpetual options
+    decision, entry_point, take_profit, stop_loss = generate_perpetual_options_decision(indicators, ma, data)
+    accuracy = calculate_signal_accuracy(pd.read_csv('signals_log.csv'), signals)
 
-        # Display results
-        st.write(f"Timestamp: {signals['timestamp']}")
-        st.write(f"RSI Signal: {signals['RSI']}")
-        st.write(f"MACD Signal: {signals['MACD']}")
-        st.write(f"ADX Signal: {signals['ADX']}")
-        st.write(f"CCI Signal: {signals['CCI']}")
-        st.write(f"Moving Averages Signal: {signals['MA']}")
-        st.write(f"Fear and Greed Index Value: {fear_and_greed_value}")
-        st.write(f"Fear and Greed Index Classification: {fear_and_greed_classification}")
-        st.write(f"Perpetual Options Decision: {decision}")
-        st.write(f"Entry Point: {entry_point}")
-        st.write(f"Take Profit Level: {take_profit_level}")
-        st.write(f"Stop Loss Level: {stop_loss_level}")
+    st.write(f"Decision: {decision}")
+    st.write(f"Entry Point: {entry_point}")
+    st.write(f"Take Profit Level: {take_profit}")
+    st.write(f"Stop Loss Level: {stop_loss}")
+    st.write(f"Signal Accuracy: {accuracy}")
 
-        # Display previous signals
-        try:
-            logs = pd.read_csv('signals_log.csv')
-            st.write("Previous Signals")
-            st.dataframe(logs)
-        except Exception as e:
-            st.error(f"Error displaying previous signals: {e}")
-
-        # Update accuracy of signals
-        try:
-            accuracy = calculate_signal_accuracy(pd.read_csv('signals_log.csv'), signals)
-            st.write(f"Signal Accuracy: {accuracy}")
-        except Exception as e:
-            st.error(f"Error calculating signal accuracy: {e}")
-
-        # Wait for next update
-        time.sleep(30)
-
-# Streamlit app
+# Run the app
 if __name__ == "__main__":
-    st.set_page_config(layout="wide")
     update_data()
