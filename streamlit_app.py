@@ -193,7 +193,7 @@ def main():
         indicators = technical_indicators_summary(data)
         moving_averages = moving_averages_summary(data)
         
-                st.write("Technical Indicators:")
+        st.write("Technical Indicators:")
         st.write(indicators)
         
         st.write("Moving Averages:")
