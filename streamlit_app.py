@@ -1,3 +1,4 @@
+
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -5,33 +6,17 @@ import numpy as np
 import ta
 import pytz
 from datetime import datetime
-import plotly.graph_objects as go
 
-# Define the ticker symbol for Bitcoin
-ticker = 'BTC-USD'
-
-# Define the timezone for EST
-est = pytz.timezone('America/New_York')
-
-# Function to convert datetime to EST
+# Define your functions here
 def to_est(dt):
     return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
-# Function to calculate signal accuracy
-def calculate_signal_accuracy(signals, actual):
-    """Calculate accuracy of signals."""
-    correct_signals = sum(1 for key in signals if signals[key] == actual.get(key, 'Neutral'))
-    return correct_signals / len(signals) if signals else 0.0
-
-# Function to fetch and process data
 def fetch_and_process_data():
     data = yf.download(ticker, period='1d', interval='1m')
-    
     if data.empty:
         st.error("No data fetched from Yahoo Finance.")
         return None
 
-    # Convert index to EST if it's not already timezone-aware
     if data.index.tzinfo is None:
         data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
     else:
@@ -59,63 +44,29 @@ def fetch_and_process_data():
 
     return data
 
-# Function to calculate Fibonacci retracement levels
-def fibonacci_retracement(high, low):
-    diff = high - low
-    levels = [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
-    return levels
+def technical_indicators_summary(data):
+    indicators = {
+        'RSI': data['RSI'].iloc[-1],
+        'MACD': data['MACD'].iloc[-1],
+        'MACD_Signal': data['MACD_Signal'].iloc[-1],
+        'STOCH': data['STOCH'].iloc[-1],
+        'ADX': data['ADX'].iloc[-1],
+        'CCI': data['CCI'].iloc[-1],
+        'BULLBEAR': data['BULLBEAR'].iloc[-1],
+        'UO': data['UO'].iloc[-1],
+        'ROC': data['ROC'].iloc[-1],
+        'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
+    }
+    return indicators
 
-# Function to detect Doji candlestick patterns
-def detect_doji(data):
-    threshold = 0.001  # Define a threshold for identifying Doji
-    data['Doji'] = abs(data['Close'] - data['Open']) / (data['High'] - data['Low']) < threshold
-    return data
+def moving_averages_summary(data):
+    moving_averages = {
+        'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
+        'MA10': data['Close'].rolling(window=10).mean().iloc[-1],
+        'MA20': data['Close'].rolling(window=20).mean().iloc[-1]
+    }
+    return moving_averages
 
-# Function to calculate support and resistance levels
-def calculate_support_resistance(data, window=5):
-    data['Support'] = data['Low'].rolling(window=window).min()
-    data['Resistance'] = data['High'].rolling(window=window).max()
-    return data
-
-# Function to generate trading signals
-def generate_signals(indicators, moving_averages, data):
-    signals = {}
-    signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
-    
-    # RSI Signal
-    if indicators['RSI'] < 30:
-        signals['RSI'] = 'Buy'
-    elif indicators['RSI'] > 70:
-        signals['RSI'] = 'Sell'
-    else:
-        signals['RSI'] = 'Neutral'
-    
-    # MACD Signal
-    if indicators['MACD'] > 0:
-        signals['MACD'] = 'Buy'
-    else:
-        signals['MACD'] = 'Sell'
-    
-    # ADX Signal
-    if indicators['ADX'] > 25:
-        signals['ADX'] = 'Buy'
-    else:
-        signals['ADX'] = 'Neutral'
-    
-    # CCI Signal
-    if indicators['CCI'] > 100:
-        signals['CCI'] = 'Buy'
-    elif indicators['CCI'] < -100:
-        signals['CCI'] = 'Sell'
-    else:
-        signals['CCI'] = 'Neutral'
-    
-    # Moving Averages Signal
-    signals['MA'] = 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
-    
-    return signals
-
-# Function to handle Iron Condor Strategy
 def iron_condor_strategy(data):
     current_price = data['Close'].iloc[-1]
     put_strike_short = current_price - 5000
@@ -136,7 +87,6 @@ def iron_condor_strategy(data):
         'Take-Profit': take_profit
     }
 
-# Function to handle trade decisions
 def decision_logic(signals, iron_condor_signals):
     decision = 'Neutral'
     if signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and iron_condor_signals['Entry Signal'] == 'Entry':
@@ -145,7 +95,6 @@ def decision_logic(signals, iron_condor_signals):
         decision = 'Go Short'
     return decision
 
-# Main function
 def main():
     data = fetch_and_process_data()
     if data is None:
@@ -165,7 +114,6 @@ def main():
 
     st.title('Bitcoin Technical Analysis and Signal Summary')
 
-    # Display results
     st.subheader('Technical Indicators')
     for key, value in indicators.items():
         st.write(f"{key}: {value:.2f}")
@@ -186,7 +134,6 @@ def main():
     st.subheader('Trade Decision')
     st.write(f"Trade Recommendation: {trade_decision}")
 
-    # Fear and Greed Index
     try:
         fear_and_greed_value = 50  # Replace with actual value
         fear_and_greed_classification = "Neutral"  # Replace with actual classification
@@ -196,12 +143,10 @@ def main():
     except Exception as e:
         st.error(f"Error fetching Fear and Greed Index: {e}")
 
-    # Calculate and display signal accuracy
     actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
     accuracy = calculate_signal_accuracy(signals, actual_signals)
     st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
     
-    # Calculate and display performance metrics
     actual_outcomes = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
     win_loss_ratio = 0
     for signal in signals:
