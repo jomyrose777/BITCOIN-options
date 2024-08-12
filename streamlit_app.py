@@ -181,8 +181,8 @@ else:
                 entry_signal = 'Entry'
 
             # Stop-loss and Take-profit levels
-            stop_loss = max(current_price - put_strike_short, call_strike_long - current_price)
-            take_profit = (call_strike_short - put_strike_short) - (2 * stop_loss)
+            stop_loss = max(abs(current_price - put_strike_short), abs(call_strike_short - current_price))
+            take_profit = min(abs(current_price - put_strike_long), abs(call_strike_long - current_price))
 
             return {
                 'Entry Signal': entry_signal,
@@ -190,6 +190,7 @@ else:
                 'Take-Profit': take_profit
             }
 
+        # Execute Iron Condor Strategy
         iron_condor_signals = iron_condor_strategy(data)
 
         # Decision Logic for Going Long or Short
