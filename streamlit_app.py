@@ -210,7 +210,7 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     
     if not isinstance(signals, dict):
         st.error("Error: Signals is not a dictionary.")
-        return 'Error', 0, 0
+        return 'Error', 0, 0, 0, 0
 
     buy_signals = [value for key, value in signals.items() if value == 'Buy']
     sell_signals = [value for key, value in signals.items() if value == 'Sell']
@@ -226,13 +226,15 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     take_profit_pct = 0.02 if decision == 'Go Long' else -0.02
     stop_loss_pct = -0.01 if decision == 'Go Long' else 0.01
     
-    entry_point = data['Close'].iloc[-1]
-    take_profit = entry_point * (1 + take_profit_pct)
-    stop_loss = entry_point * (1 + stop_loss_pct)  # Note the change from subtraction to addition
+    entry_point_long = data['Close'].iloc[-1] * 1.001  # Entry point for long trade, 0.1% above current price
+    entry_point_short = data['Close'].iloc[-1] * 0.999  # Entry point for short trade, 0.1% below current price
     
-    log_signals(signals, decision, entry_point, take_profit, stop_loss)
+    take_profit = data['Close'].iloc[-1] * (1 + take_profit_pct)
+    stop_loss = data['Close'].iloc[-1] * (1 + stop_loss_pct)
     
-    return decision, take_profit, stop_loss
+    log_signals(signals, decision, entry_point_long, entry_point_short, take_profit, stop_loss)
+    
+    return decision, entry_point_long, entry_point_short, take_profit, stop_loss
 
 # Main app logic
 st.title("Bitcoin Trading Signals")
