@@ -139,15 +139,27 @@ def generate_signals(indicators, moving_averages, data):
     
     return signals
 
-# Function to log signals
-def log_signals(signals):
+# Function to log signals with additional details
+def log_signals(signals, decision, entry_point, take_profit, stop_loss):
     log_file = 'signals_log.csv'
     try:
         logs = pd.read_csv(log_file)
     except FileNotFoundError:
-        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA'])
+        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point', 'Take Profit', 'Stop Loss', 'Decision'])
 
-    new_log = pd.DataFrame([signals])
+    # Add new log
+    new_log = pd.DataFrame([{
+        'timestamp': signals['timestamp'],
+        'RSI': signals['RSI'],
+        'MACD': signals['MACD'],
+        'ADX': signals['ADX'],
+        'CCI': signals['CCI'],
+        'MA': signals['MA'],
+        'Entry Point': entry_point,
+        'Take Profit': take_profit,
+        'Stop Loss': stop_loss,
+        'Decision': decision
+    }])
     logs = pd.concat([new_log, logs], ignore_index=True)
     logs.to_csv(log_file, index=False)
 
@@ -196,45 +208,68 @@ def calculate_signal_accuracy(logs, signals):
     accuracy = (accurate_signals / total_signals) * 100
     return f"{accuracy:.2f}%"
 
-# Main function to update data
+# Main function to update and display data
 def update_data():
+    st.title('Bitcoin Trading Signal and Analysis')
+
+    # Fetch data
     data = fetch_data(ticker)
     if data is None:
-        st.stop()
+        return
 
+    # Calculate indicators and signals
     data = calculate_indicators(data)
     data = calculate_support_resistance(data)
     data = detect_doji(data)
+    
+    indicators = technical_indicators_summary(data)
+    moving_averages = moving_averages_summary(data)
+    
+    decision, entry_point, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data)
+    
+    # Log the signals
+    log_signals(generate_signals(indicators, moving_averages, data), decision, entry_point, take_profit, stop_loss)
+    
+    # Display latest data and signals
+    st.write(f"Latest Data as of {data.index[-1]}")
+    st.write(data.tail())
 
-    # Add chart to display support and resistance levels
-    st.title('Bitcoin Technical Analysis and Signal Summary')
+    # Display decision
+    st.write(f"Decision: {decision}")
+    st.write(f"Entry Point: ${entry_point:.2f}")
+    st.write(f"Take Profit Level: ${take_profit:.2f}")
+    st.write(f"Stop Loss Level: ${stop_loss:.2f}")
+
+    # Display signal accuracy
+    try:
+        logs = pd.read_csv('signals_log.csv')
+    except FileNotFoundError:
+        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point', 'Take Profit', 'Stop Loss', 'Decision'])
+
+    accuracy = calculate_signal_accuracy(logs, generate_signals(indicators, moving_averages, data))
+    st.write(f"Signal Accuracy: {accuracy}")
+    
+    # Display previous signals log
+    st.subheader('Previous Signals Log')
+    st.write(logs)
+
+    # Plotting
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['Support'], name='Support', line=dict(dash='dash')))
-    fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], name='Resistance', line=dict(dash='dash')))
-    fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
+    fig.add_trace(go.Candlestick(x=data.index,
+                                open=data['Open'],
+                                high=data['High'],
+                                low=data['Low'],
+                                close=data['Close'],
+                                name='Candlestick'))
+    fig.update_layout(title='BTC-USD Candlestick Chart', xaxis_title='Date', yaxis_title='Price')
     st.plotly_chart(fig)
 
-    # Generate summaries
-    indicators = technical_indicators_summary(data)
-    ma = moving_averages_summary(data)
-    signals = generate_signals(indicators, ma, data)
-    log_signals(signals)
-    
-    # Add Fear and Greed Index
-    fng_value, fng_class = fetch_fear_and_greed_index()
-    st.write(f"Fear and Greed Index: {fng_value} ({fng_class})")
+    # Fetch and display Fear and Greed Index
+    fear_greed_value, fear_greed_classification = fetch_fear_and_greed_index()
+    st.write(f"Fear and Greed Index: {fear_greed_value} ({fear_greed_classification})")
 
-    # Generate decision for perpetual options
-    decision, entry_point, take_profit, stop_loss = generate_perpetual_options_decision(indicators, ma, data)
-    accuracy = calculate_signal_accuracy(pd.read_csv('signals_log.csv'), signals)
+    # Add additional Streamlit components here if needed
 
-    st.write(f"Decision: {decision}")
-    st.write(f"Entry Point: {entry_point}")
-    st.write(f"Take Profit Level: {take_profit}")
-    st.write(f"Stop Loss Level: {stop_loss}")
-    st.write(f"Signal Accuracy: {accuracy}")
-
-# Run the app
+# Run the main function
 if __name__ == "__main__":
     update_data()
