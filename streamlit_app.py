@@ -149,6 +149,12 @@ def fetch_fear_and_greed_index() -> Tuple[str, str]:
         st.error(f"Error fetching Fear and Greed Index: {e}")
         return 'N/A', 'N/A'
 
+# Calculate signal accuracy (dummy function for example)
+def calculate_signal_accuracy(signals: Dict[str, str]) -> float:
+    """Calculate accuracy of signals. Placeholder implementation."""
+    # Dummy implementation: You should replace this with actual calculation or backtesting
+    return 0.75  # Example accuracy
+
 def main():
     st.title("Options Trading Strategies")
 
@@ -180,107 +186,54 @@ def main():
         'ROC': data['ROC'].iloc[-1],
         'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
     }
+    moving_averages = {
+        'MA5': data['MA5'].iloc[-1],
+        'MA10': data['MA10'].iloc[-1]
+    }
 
-    # Generate signals
-    signals = generate_signals(indicators, {'MA5': data['MA5'].iloc[-1], 'MA10': data['MA10'].iloc[-1]})
-    st.write("Trading Signals:", signals)
+    signals = generate_signals(indicators, moving_averages)
+    accuracy = calculate_signal_accuracy(signals)
 
-    # Input fields for Iron Condor
-    st.subheader("Iron Condor Strategy")
-    lower_put_strike = st.number_input("Lower Put Strike Price", min_value=0.0, value=40000.0)
-    higher_put_strike = st.number_input("Higher Put Strike Price", min_value=0.0, value=39000.0)
-    lower_call_strike = st.number_input("Lower Call Strike Price", min_value=0.0, value=41000.0)
-    higher_call_strike = st.number_input("Higher Call Strike Price", min_value=0.0, value=42000.0)
-    put1_premium = st.number_input("Put 1 Premium", min_value=0.0, value=100.0)
-    put2_premium = st.number_input("Put 2 Premium", min_value=0.0, value=100.0)
-    call1_premium = st.number_input("Call 1 Premium", min_value=0.0, value=100.0)
-    call2_premium = st.number_input("Call 2 Premium", min_value=0.0, value=100.0)
+    # Get user input for entry price, stop loss, and current price
+    entry_price = st.number_input("Enter Entry Price:", min_value=0.0, format="%.2f")
+    stop_loss = st.number_input("Enter Stop Loss:", min_value=0.0, format="%.2f")
+    current_price = st.number_input("Enter Current Price:", min_value=0.0, format="%.2f")
 
-    # Calculate Iron Condor P&L
-    iron_condor_premium = iron_condor_pnl(data['Close'].iloc[-1], 
-                                          (lower_put_strike, higher_put_strike, lower_call_strike, higher_call_strike), 
-                                          (put1_premium, put2_premium, call1_premium, call2_premium))
-    st.write(f"Iron Condor P&L: ${iron_condor_premium:.2f}")
+    if entry_price and current_price:
+        # Determine position
+        if current_price > entry_price:
+            position = "Long"
+            pnl = current_price - entry_price - stop_loss
+        else:
+            position = "Short"
+            pnl = entry_price - current_price - stop_loss
+        
+        st.write(f"Current Position: {position}")
+        st.write(f"Potential P&L: {pnl:.2f}")
 
-    # Input fields for Butterfly Spread
-    st.subheader("Butterfly Spread Strategy")
-    lower_strike_butterfly = st.number_input("Lower Strike Price", min_value=0.0, value=40000.0)
-    middle_strike = st.number_input("Middle Strike Price", min_value=0.0, value=40500.0)
-    higher_strike_butterfly = st.number_input("Higher Strike Price", min_value=0.0, value=41000.0)
-    lower_premium = st.number_input("Lower Strike Premium", min_value=0.0, value=100.0)
-    middle_premium = st.number_input("Middle Strike Premium", min_value=0.0, value=200.0)
-    higher_premium = st.number_input("Higher Strike Premium", min_value=0.0, value=100.0)
+    # Fetch and display Fear and Greed Index
+    fear_and_greed_value, fear_and_greed_classification = fetch_fear_and_greed_index()
+    st.write(f"Fear and Greed Index: {fear_and_greed_value} ({fear_and_greed_classification})")
 
-    # Calculate Butterfly Spread P&L
-    butterfly_premium = butterfly_spread_pnl(data['Close'].iloc[-1], 
-                                             (lower_strike_butterfly, middle_strike, higher_strike_butterfly), 
-                                             (lower_premium, middle_premium, higher_premium))
-    st.write(f"Butterfly Spread P&L: ${butterfly_premium:.2f}")
+    # Display the signals and accuracy
+    st.write("Signals:")
+    for key, value in signals.items():
+        st.write(f"{key}: {value}")
 
-    # Gamma Scalping Input
-    st.subheader("Gamma Scalping Adjustment")
-    option_delta = st.number_input("Option Delta", value=0.0)
-    underlying_position = st.number_input("Underlying Position", value=0.0)
+    st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
 
-    # Calculate Gamma Scalping Adjustment
-    adjustment = gamma_scalping(data['Close'].iloc[-1], option_delta, underlying_position)
-    st.write(f"Gamma Scalping Adjustment: {adjustment:.2f}")
-
-    # Display latest news and Fear & Greed Index
-    fear_and_greed_index, classification = fetch_fear_and_greed_index()
-    st.write(f"Fear and Greed Index: {fear_and_greed_index} ({classification})")
-
-    # Determine final decision based on all analyses
-    final_decision = determine_final_decision(
-        signals, 
-        iron_condor_premium, 
-        butterfly_premium, 
-        adjustment, 
-        fear_and_greed_index
-    )
-
-    st.write("Final Decision:", final_decision)
-
-    # Plot the data
+    # Display data with plotly
     fig = go.Figure()
-
-    # Check if columns exist before adding traces
-    if 'MA5' in data.columns:
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
-
-    if 'MA10' in data.columns:
-        fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
-
     fig.add_trace(go.Candlestick(x=data.index,
                                  open=data['Open'],
                                  high=data['High'],
                                  low=data['Low'],
                                  close=data['Close'],
-                                 name='Candlestick'))
-
+                                 name="Candlestick"))
+    fig.update_layout(title="Bitcoin Price Data",
+                      xaxis_title="Date",
+                      yaxis_title="Price")
     st.plotly_chart(fig)
-
-def determine_final_decision(signals, iron_condor_premium, butterfly_premium, gamma_adjustment, fear_and_greed_index):
-    # Print intermediate values for debugging
-    print("Iron Condor Premium:", iron_condor_premium)
-    print("Butterfly Premium:", butterfly_premium)
-    print("Gamma Adjustment:", gamma_adjustment)
-    print("Fear and Greed Index:", fear_and_greed_index)
-    
-    # Example decision logic with adjusted thresholds
-    if iron_condor_premium > 0 and butterfly_premium > 0:
-        if gamma_adjustment > 0:
-            entry_point = "Current Price"  # Example entry point
-            return f"Go Long at {entry_point}. Iron Condor and Butterfly Spread show positive outcomes. Gamma Scalping adjustment supports this decision."
-        elif gamma_adjustment < 0:
-            entry_point = "Current Price"
-            return f"Go Short at {entry_point}. Iron Condor and Butterfly Spread show positive outcomes, but Gamma Scalping adjustment suggests caution."
-    elif iron_condor_premium < 0 and butterfly_premium < 0:
-        entry_point = "Current Price"
-        return f"Go Short at {entry_point}. Both Iron Condor and Butterfly Spread indicate potential bearish conditions."
-    
-    return "No clear signal. Re-evaluate strategies and indicators."
-
 
 if __name__ == "__main__":
     main()
