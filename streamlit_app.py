@@ -186,12 +186,8 @@ def main():
 
     data = fetch_data(ticker)
     if data is not None:
-        data = calculate_indicators(data)
-        data = calculate_support_resistance(data)
-        data = detect_doji(data)
-
+        data, moving_averages = moving_averages_summary(data)
         indicators = technical_indicators_summary(data)
-        moving_averages = moving_averages_summary(data)
         
         st.write("Technical Indicators:")
         st.write(indicators)
@@ -211,27 +207,26 @@ def main():
         if st.checkbox("Show Price and Moving Averages"):
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], mode='lines', name='MA50'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA100'], mode='lines', name='MA100'))
+            if 'MA5' in data.columns:
+                fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
+            if 'MA10' in data.columns:
+                fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
+            if 'MA20' in data.columns:
+                fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20'))
+            if 'MA50' in data.columns:
+                fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], mode='lines', name='MA50'))
+            if 'MA100' in data.columns:
+                fig.add_trace(go.Scatter(x=data.index, y=data['MA100'], mode='lines', name='MA100'))
+            if 'MA200' in data.columns:
+                fig.add_trace(go.Scatter(x=data.index, y=data['MA200'], mode='lines', name='MA200'))
             fig.update_layout(title='Bitcoin Price and Moving Averages', xaxis_title='Date', yaxis_title='Price')
             st.plotly_chart(fig)
         
         # Add a refresh button
-        if st.button('Refresh'):
-            st.experimental_rerun()
-    
-    # Add periodic auto-refresh
-    def auto_refresh():
-        while True:
-            time.sleep(30)
-            st.experimental_rerun()
+        if st.button('Refresh Data'):
+            st.experimental_rerun()  # Attempt to rerun manually, check if it works
 
-    if st.session_state.get('refresh_thread') is None:
-        st.session_state['refresh_thread'] = threading.Thread(target=auto_refresh, daemon=True)
-        st.session_state['refresh_thread'].start()
+    # Remove periodic auto-refresh and use manual triggers instead
 
 if __name__ == "__main__":
     main()
