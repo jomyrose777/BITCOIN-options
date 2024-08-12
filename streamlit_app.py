@@ -20,7 +20,7 @@ def to_est(dt):
     return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
 # Function to fetch live data from Yahoo Finance
-@st.cache_data(ttl=60)  # Increase cache time
+@st.cache_data(ttl=30)
 def fetch_data(ticker):
     try:
         data = yf.download(ticker, period='1d', interval='1m')
@@ -48,6 +48,7 @@ def calculate_indicators(data):
     data['CCI'] = ta.trend.CCIIndicator(data['High'], data['Low'], data['Close']).cci()
     data['ROC'] = ta.momentum.ROCIndicator(data['Close']).roc()
     data['WILLIAMSR'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
+    data.dropna(inplace=True)
     return data
 
 # Function to calculate support and resistance levels
@@ -56,16 +57,16 @@ def calculate_support_resistance(data, window=5):
     data['Resistance'] = data['High'].rolling(window=window).max()
     return data
 
-# Function to fetch Fear and Greed Index
-@st.cache_data(ttl=60)  # Increase cache time
-def fetch_fear_and_greed_index():
-    url = "https://api.alternative.me/fng/"
-    response = requests.get(url)
-    data = response.json()
-    latest_data = data['data'][0]
-    return latest_data['value'], latest_data['value_classification']
+# Function to detect Doji candlestick patterns
+def detect_doji(data, threshold=0.1):
+    data['Doji'] = np.where(
+        (data['Close'] - data['Open']).abs() / (data['High'] - data['Low']) < threshold,
+        'Yes',
+        'No'
+    )
+    return data
 
-# Generate summary of technical indicators
+# Function to generate summary of technical indicators
 def technical_indicators_summary(data):
     indicators = {
         'RSI': data['RSI'].iloc[-1],
@@ -78,7 +79,7 @@ def technical_indicators_summary(data):
     }
     return indicators
 
-# Generate summary of moving averages
+# Function to generate summary of moving averages
 def moving_averages_summary(data):
     ma = {
         'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
@@ -90,10 +91,10 @@ def moving_averages_summary(data):
     }
     return ma
 
-# Generate buy/sell signals based on indicators and moving averages
+# Function to generate buy/sell signals based on indicators and moving averages
 def generate_signals(indicators, moving_averages):
     signals = {}
-    signals['timestamp'] = to_est(pd.Timestamp.now()).strftime('%Y-%m-%d %I:%M:%S %p')
+    signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
     
     # RSI Signal
     if indicators['RSI'] < 30:
@@ -128,29 +129,27 @@ def generate_signals(indicators, moving_averages):
     
     return signals
 
-# Calculate signal accuracy
-def calculate_signal_accuracy(logs, signals):
-    if len(logs) == 0:
-        return 'N/A'
-    last_signal = logs.iloc[-1]
-    accurate_signals = sum([last_signal[key] == signals[key] for key in signals if key in last_signal])
-    total_signals = len(signals)
-    accuracy = (accurate_signals / total_signals) * 100
-    return f"{accuracy:.2f}%"
-
-# Log signals
+# Function to log signals
 def log_signals(signals):
     log_file = 'signals_log.csv'
     try:
         logs = pd.read_csv(log_file)
     except FileNotFoundError:
         logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA'])
-    
+
     new_log = pd.DataFrame([signals])
     logs = pd.concat([logs, new_log], ignore_index=True)
     logs.to_csv(log_file, index=False)
 
-# Generate a perpetual options decision
+# Function to fetch Fear and Greed Index
+def fetch_fear_and_greed_index():
+    url = "https://api.alternative.me/fng/"
+    response = requests.get(url)
+    data = response.json()
+    latest_data = data['data'][0]
+    return latest_data['value'], latest_data['value_classification']
+
+# Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages):
     signals = generate_signals(indicators, moving_averages)
     
@@ -167,7 +166,17 @@ def generate_perpetual_options_decision(indicators, moving_averages):
     
     return decision, data['Close'].iloc[-1]
 
-# Main function to update data and display information
+# Function to calculate signal accuracy
+def calculate_signal_accuracy(logs, signals):
+    if len(logs) == 0:
+        return 'N/A'
+    last_signal = logs.iloc[-1]
+    accurate_signals = sum([last_signal[key] == signals[key] for key in signals if key in last_signal])
+    total_signals = len(signals)
+    accuracy = (accurate_signals / total_signals) * 100
+    return f"{accuracy:.2f}%"
+
+# Main function to update data
 def update_data():
     while True:
         data = fetch_data(ticker)
@@ -224,5 +233,7 @@ def update_data():
         # Wait for next update
         time.sleep(30)
 
-if __name__ == '__main__':
+# Streamlit app
+if __name__ == "__main__":
+    st.set_page_config(layout="wide")
     update_data()
