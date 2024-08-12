@@ -2,7 +2,8 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import ta
+import ta.momentum as momentum
+import ta.trend as trend
 import pytz
 from datetime import datetime
 import plotly.graph_objects as go
