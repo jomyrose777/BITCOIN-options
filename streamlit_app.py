@@ -117,7 +117,7 @@ def generate_weighted_signals(indicators, moving_averages):
                      sum([weights[indicator] for indicator, signal in signals.items() if signal == 'Sell'])
     
     # Include moving averages in the signal if needed
-    for ma in moving_averages:
+    for ma, value in moving_averages.items():
         signals[ma] = 'Neutral'
 
     return signals, weighted_score
@@ -127,11 +127,13 @@ def log_signals(signals, decision, entry_point_long, entry_point_short, take_pro
     log_file = 'signals_log.csv'
     try:
         logs = pd.read_csv(log_file)
-    except (FileNotFoundError, pandas.errors.EmptyDataError):
-        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point Long', 'Entry Point Short', 'Take Profit', 'Stop Loss', 'Decision', 'Weighted Score'])
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        logs = pd.DataFrame(columns=[
+            'timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA',
+            'Entry Point Long', 'Entry Point Short', 'Take Profit',
+            'Stop Loss', 'Decision', 'Weighted Score'
+        ])
     
-    # Rest of the function remains the same
-
     # Add new log
     new_log = pd.DataFrame([{
         'timestamp': datetime.now(est).strftime('%Y-%m-%d %H:%M:%S'),
@@ -139,7 +141,7 @@ def log_signals(signals, decision, entry_point_long, entry_point_short, take_pro
         'MACD': signals.get('MACD', 'N/A'),
         'ADX': signals.get('ADX', 'N/A'),
         'CCI': signals.get('CCI', 'N/A'),
-        'MA': signals.get('MA', 'N/A'),  # Adjusted for potential MA missing keys
+        'MA': signals.get('MA', 'N/A'),
         'Entry Point Long': entry_point_long,
         'Entry Point Short': entry_point_short,
         'Take Profit': take_profit,
@@ -209,31 +211,20 @@ def main():
         st.write(f"Take Profit: {take_profit}")
         st.write(f"Stop Loss: {stop_loss}")
 
-        # Plot Bitcoin price and moving averages
-        if st.checkbox("Show Price and Moving Averages"):
-            fig = go.Figure()
-            fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], mode='lines', name='MA50'))
-            fig.add_trace(go.Scatter(x=data.index, y=data['MA100'], mode='lines', name='MA100'))
-            fig.update_layout(title='Bitcoin Price and Moving Averages', xaxis_title='Date', yaxis_title='Price')
-            st.plotly_chart(fig)
-        
-        # Add a refresh button
-        if st.button('Refresh'):
-            st.experimental_rerun()
+        # Display chart
+        fig = go.Figure()
+        fig.add_trace(go.Candlestick(x=data.index,
+                                     open=data['Open'],
+                                     high=data['High'],
+                                     low=data['Low'],
+                                     close=data['Close'],
+                                     name='Candlestick'))
+        fig.update_layout(title='Bitcoin Candlestick Chart', xaxis_title='Date', yaxis_title='Price')
+        st.plotly_chart(fig)
 
-# Add periodic auto-refresh
-def auto_refresh():
-    while True:
-        time.sleep(30)
-        st.experimental_rerun()
-
-if st.session_state.get('refresh_thread') is None:
-    st.session_state['refresh_thread'] = threading.Thread(target=auto_refresh, daemon=True)
-    st.session_state['refresh_thread'].start()
+        # Display Doji detection results
+        st.write("Doji Candlestick Detection:")
+        st.write(data[['Doji']].tail())
 
 if __name__ == "__main__":
     main()
