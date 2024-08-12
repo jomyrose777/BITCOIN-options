@@ -46,15 +46,15 @@ def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
     data = data.dropna()
 
     try:
-        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
-        macd = ta.trend.MACD(data['Close'])
+        data['RSI'] = momentum.RSIIndicator(data['Close'], window=14).rsi()
+        macd = trend.MACD(data['Close'])
         data['MACD'] = macd.macd()
         data['MACD_Signal'] = macd.macd_signal()
-        data['STOCH'] = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close']).stoch()
-        data['ADX'] = ta.trend.ADXIndicator(data['High'], data['Low'], data['Close']).adx()
-        data['CCI'] = ta.trend.CCIIndicator(data['High'], data['Low'], data['Close']).cci()
-        data['ROC'] = ta.momentum.ROCIndicator(data['Close']).roc()
-        data['WILLIAMSR'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
+        data['STOCH'] = momentum.StochasticOscillator(data['High'], data['Low'], data['Close']).stoch()
+        data['ADX'] = trend.ADXIndicator(data['High'], data['Low'], data['Close']).adx()
+        data['CCI'] = trend.CCIIndicator(data['High'], data['Low'], data['Close']).cci()
+        data['ROC'] = momentum.ROCIndicator(data['Close']).roc()
+        data['WILLIAMSR'] = momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
     except Exception as e:
         st.error(f"Error calculating indicators: {e}")
     
@@ -96,12 +96,18 @@ def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, fl
 
     signals = {
         'timestamp': current_time_est.strftime('%Y-%m-%d %I:%M:%S %p'),
-        'RSI': get_signal(indicators['RSI'], 30, 70),
-        'MACD': 'Buy' if indicators['MACD'] > 0 else 'Sell',
-        'ADX': 'Buy' if indicators['ADX'] > 25 else 'Neutral',
-        'CCI': get_signal(indicators['CCI'], -100, 100),
-        'MA': 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
     }
+
+    if 'RSI' in indicators:
+        signals['RSI'] = get_signal(indicators['RSI'], 30, 70)
+    else:
+        signals['RSI'] = 'Neutral'
+
+    signals['MACD'] = 'Buy' if indicators.get('MACD', 0) > 0 else 'Sell'
+    signals['ADX'] = 'Buy' if indicators.get('ADX', 0) > 25 else 'Neutral'
+    signals['CCI'] = get_signal(indicators.get('CCI', 0), -100, 100)
+    signals['MA'] = 'Buy' if moving_averages.get('MA5', 0) > moving_averages.get('MA10', 0) else 'Sell'
+
     return signals
 
 # Iron Condor P&L Calculation
@@ -192,56 +198,54 @@ def suggest_trade_action(data: pd.DataFrame, indicators: Dict[str, float]) -> Di
         'Take-Profit': take_profit
     }
 
-# Main function to drive the Streamlit app
+# Main function to run the Streamlit app
 def main():
-    st.title("Options Trading Analysis")
-
-    # Fetch and display data
+    # Fetch data
     data = fetch_data(ticker)
-    if data.empty:
-        return
-    
-    st.write("### Historical Data")
-    st.write(data.tail())
 
     # Calculate indicators
     indicators = calculate_indicators(data)
-    
-    # Generate trading signals
-    moving_averages = {'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
-                       'MA10': data['Close'].rolling(window=10).mean().iloc[-1]}
-    signals = generate_signals(indicators, moving_averages)
-    st.write("### Signals")
-    st.write(signals)
 
-    # Calculate and display P&L
-    iron_condor_pnl_val = iron_condor_pnl(current_price=data['Close'].iloc[-1],
-                                          strikes=(23000, 24000, 25000, 26000),
-                                          premiums=(100, 100, 100, 100))
-    gamma_scalping_adjustment = gamma_scalping(current_price=data['Close'].iloc[-1],
-                                               option_delta=0.5,
-                                               underlying_position=0)
-    butterfly_spread_pnl_val = butterfly_spread_pnl(current_price=data['Close'].iloc[-1],
-                                                    strikes=(23000, 24000, 25000),
-                                                    premiums=(100, 150, 100))
-    
-    st.write("### P&L Calculations")
-    st.write(f"Iron Condor P&L: ${iron_condor_pnl_val:.2f}")
-    st.write(f"Gamma Scalping Adjustment: {gamma_scalping_adjustment:.2f}")
-    st.write(f"Butterfly Spread P&L: ${butterfly_spread_pnl_val:.2f}")
+    # Detect Doji candlestick patterns
+    data = detect_doji(data)
+
+    # Calculate support and resistance levels
+    data = calculate_support_resistance(data)
+
+    # Generate trading signals
+    signals = generate_signals(indicators, {})
 
     # Fetch Fear and Greed Index
-    fear_and_greed_index, classification = fetch_fear_and_greed_index()
-    st.write(f"### Fear and Greed Index: {fear_and_greed_index} ({classification})")
+    fear_and_greed_index, fear_and_greed_classification = fetch_fear_and_greed_index()
 
     # Calculate signal accuracy
-    accuracy = calculate_signal_accuracy(signals)
-    st.write(f"### Signal Accuracy: {accuracy:.2f}")
+    signal_accuracy = calculate_signal_accuracy(signals)
 
     # Suggest trade action
-    trade_suggestion = suggest_trade_action(data, indicators)
-    st.write("### Trade Suggestion")
-    st.write(trade_suggestion)
+    trade_action = suggest_trade_action(data, indicators)
 
-if __name__ == "__main__":
+    # Create Streamlit app
+    st.title('Crypto Trading Bot')
+    st.write('### Current Data')
+    st.write(data.tail(10))
+    st.write('### Indicators')
+    st.write(indicators)
+    st.write('### Signals')
+    st.write(signals)
+    st.write('### Fear and Greed Index')
+    st.write(f'Value: {fear_and_greed_index}, Classification: {fear_and_greed_classification}')
+    st.write('### Signal Accuracy')
+    st.write(f'{signal_accuracy*100}%')
+    st.write('### Trade Action')
+    st.write(trade_action)
+
+    # Plot data
+    fig = go.Figure(data=[go.Candlestick(x=data.index,
+                                         open=data['Open'],
+                                         high=data['High'],
+                                         low=data['Low'],
+                                         close=data['Close'])])
+    st.plotly_chart(fig)
+
+if __name__ == '__main__':
     main()
