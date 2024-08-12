@@ -1,4 +1,3 @@
-
 import streamlit as st
 import yfinance as yf
 import pandas as pd
@@ -11,7 +10,7 @@ from datetime import datetime
 def to_est(dt):
     return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
 
-def fetch_and_process_data():
+def fetch_and_process_data(ticker):
     data = yf.download(ticker, period='1d', interval='1m')
     if data.empty:
         st.error("No data fetched from Yahoo Finance.")
@@ -95,69 +94,76 @@ def decision_logic(signals, iron_condor_signals):
         decision = 'Go Short'
     return decision
 
+def calculate_signal_accuracy(signals, actual):
+    correct_signals = sum(1 for key in signals if signals[key] == actual.get(key, 'Neutral'))
+    return correct_signals / len(signals) if signals else 0.0
+
 def main():
-    data = fetch_and_process_data()
-    if data is None:
-        return
-
-    high = data['High'].max()
-    low = data['Low'].min()
-    fib_levels = fibonacci_retracement(high, low)
-    data = detect_doji(data)
-    data = calculate_support_resistance(data)
-
-    indicators = technical_indicators_summary(data)
-    moving_averages = moving_averages_summary(data)
-    signals = generate_signals(indicators, moving_averages, data)
-    iron_condor_signals = iron_condor_strategy(data)
-    trade_decision = decision_logic(signals, iron_condor_signals)
-
     st.title('Bitcoin Technical Analysis and Signal Summary')
-
-    st.subheader('Technical Indicators')
-    for key, value in indicators.items():
-        st.write(f"{key}: {value:.2f}")
-
-    st.subheader('Moving Averages')
-    for key, value in moving_averages.items():
-        st.write(f"{key}: {value:.2f}")
-
-    st.subheader('Trading Signals')
-    for key, value in signals.items():
-        st.write(f"{key}: {value}")
-
-    st.subheader('Iron Condor Strategy Signals')
-    st.write(f"Entry Signal: {iron_condor_signals['Entry Signal']}")
-    st.write(f"Stop-Loss: {iron_condor_signals['Stop-Loss']:.2f}")
-    st.write(f"Take-Profit: {iron_condor_signals['Take-Profit']:.2f}")
-
-    st.subheader('Trade Decision')
-    st.write(f"Trade Recommendation: {trade_decision}")
-
-    try:
-        fear_and_greed_value = 50  # Replace with actual value
-        fear_and_greed_classification = "Neutral"  # Replace with actual classification
-        st.subheader('Fear and Greed Index')
-        st.write(f"Value: {fear_and_greed_value}")
-        st.write(f"Classification: {fear_and_greed_classification}")
-    except Exception as e:
-        st.error(f"Error fetching Fear and Greed Index: {e}")
-
-    actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
-    accuracy = calculate_signal_accuracy(signals, actual_signals)
-    st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
     
-    actual_outcomes = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
-    win_loss_ratio = 0
-    for signal in signals:
-        if signals[signal] == actual_outcomes.get(signal):
-            win_loss_ratio += 1
-        else:
-            win_loss_ratio -= 1
-    
-    accuracy_percentage = (win_loss_ratio / len(signals)) * 100
-    st.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
-    st.write(f"Accuracy Percentage: {accuracy_percentage:.2f}")
+    ticker = st.text_input('Enter Ticker Symbol', value='BTC-USD')  # Default ticker symbol
+
+    if ticker:
+        data = fetch_and_process_data(ticker)
+        if data is None:
+            return
+
+        high = data['High'].max()
+        low = data['Low'].min()
+        fib_levels = fibonacci_retracement(high, low)
+        data = detect_doji(data)
+        data = calculate_support_resistance(data)
+
+        indicators = technical_indicators_summary(data)
+        moving_averages = moving_averages_summary(data)
+        signals = generate_signals(indicators, moving_averages, data)
+        iron_condor_signals = iron_condor_strategy(data)
+        trade_decision = decision_logic(signals, iron_condor_signals)
+
+        st.subheader('Technical Indicators')
+        for key, value in indicators.items():
+            st.write(f"{key}: {value:.2f}")
+
+        st.subheader('Moving Averages')
+        for key, value in moving_averages.items():
+            st.write(f"{key}: {value:.2f}")
+
+        st.subheader('Trading Signals')
+        for key, value in signals.items():
+            st.write(f"{key}: {value}")
+
+        st.subheader('Iron Condor Strategy Signals')
+        st.write(f"Entry Signal: {iron_condor_signals['Entry Signal']}")
+        st.write(f"Stop-Loss: {iron_condor_signals['Stop-Loss']:.2f}")
+        st.write(f"Take-Profit: {iron_condor_signals['Take-Profit']:.2f}")
+
+        st.subheader('Trade Decision')
+        st.write(f"Trade Recommendation: {trade_decision}")
+
+        try:
+            fear_and_greed_value = 50  # Replace with actual value
+            fear_and_greed_classification = "Neutral"  # Replace with actual classification
+            st.subheader('Fear and Greed Index')
+            st.write(f"Value: {fear_and_greed_value}")
+            st.write(f"Classification: {fear_and_greed_classification}")
+        except Exception as e:
+            st.error(f"Error fetching Fear and Greed Index: {e}")
+
+        actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
+        accuracy = calculate_signal_accuracy(signals, actual_signals)
+        st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
+        
+        actual_outcomes = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
+        win_loss_ratio = 0
+        for signal in signals:
+            if signals[signal] == actual_outcomes.get(signal):
+                win_loss_ratio += 1
+            else:
+                win_loss_ratio -= 1
+        
+        accuracy_percentage = (win_loss_ratio / len(signals)) * 100
+        st.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
+        st.write(f"Accuracy Percentage: {accuracy_percentage:.2f}")
 
 if __name__ == '__main__':
     main()
