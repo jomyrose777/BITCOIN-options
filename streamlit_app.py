@@ -7,6 +7,20 @@ import pytz
 from datetime import datetime
 import plotly.graph_objects as go
 import requests
+import time
+
+def refresh_app():
+    while True:
+        # Refresh the app
+        st.experimental_rerun()
+        # Wait for 60 seconds before refreshing again
+        time.sleep(60)
+
+# Run the refresh function in a background thread
+if st.session_state.get("refresh_started", False) is False:
+    import threading
+    threading.Thread(target=refresh_app, daemon=True).start()
+    st.session_state.refresh_started = True
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
