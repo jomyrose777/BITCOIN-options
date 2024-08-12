@@ -199,12 +199,16 @@ def suggest_trade_action(data: pd.DataFrame, indicators: Dict[str, float]) -> Di
     }
 
 # Main function to run the Streamlit app
+# Main function to run the Streamlit app
 def main():
     # Fetch data
     data = fetch_data(ticker)
 
     # Calculate indicators
-    indicators = calculate_indicators(data)
+    if len(data) >= 14:
+        indicators = calculate_indicators(data)
+    else:
+        indicators = {}
 
     # Detect Doji candlestick patterns
     data = detect_doji(data)
@@ -212,17 +216,26 @@ def main():
     # Calculate support and resistance levels
     data = calculate_support_resistance(data)
 
-    # Generate trading signals
-    signals = generate_signals(indicators, {})
+    # Suggest trade action
+    if 'MACD' in indicators:
+        if indicators['MACD'] == 'Sell':
+            action = 'Go Short'
+        elif indicators['MACD'] == 'Buy':
+            action = 'Go Long'
+            stop_loss = latest_price * 0.98  # Stop-loss 2% below the current price for long
+            take_profit = latest_price * 1.05  # Take-profit 5% above the current price for long
+        else:
+            action = 'Hold'
+    else:
+        action = 'Hold'
+        stop_loss = None
+        take_profit = None
 
     # Fetch Fear and Greed Index
     fear_and_greed_index, fear_and_greed_classification = fetch_fear_and_greed_index()
 
     # Calculate signal accuracy
-    signal_accuracy = calculate_signal_accuracy(signals)
-
-    # Suggest trade action
-    trade_action = suggest_trade_action(data, indicators)
+    signal_accuracy = calculate_signal_accuracy(indicators)
 
     # Create Streamlit app
     st.title('Crypto Trading Bot')
@@ -231,13 +244,11 @@ def main():
     st.write('### Indicators')
     st.write(indicators)
     st.write('### Signals')
-    st.write(signals)
+    st.write({'Action': action, 'Stop-Loss': stop_loss, 'Take-Profit': take_profit})
     st.write('### Fear and Greed Index')
     st.write(f'Value: {fear_and_greed_index}, Classification: {fear_and_greed_classification}')
     st.write('### Signal Accuracy')
     st.write(f'{signal_accuracy*100}%')
-    st.write('### Trade Action')
-    st.write(trade_action)
 
     # Plot data
     fig = go.Figure(data=[go.Candlestick(x=data.index,
