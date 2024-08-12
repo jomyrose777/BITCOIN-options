@@ -23,20 +23,20 @@ def calculate_signal_accuracy(signals, actual):
     correct_signals = sum(1 for key in signals if signals[key] == actual.get(key, 'Neutral'))
     return correct_signals / len(signals) if signals else 0.0
 
-# Fetch live data from Yahoo Finance
-data = yf.download(ticker, period='1d', interval='1m')
+# Function to fetch and process data
+def fetch_and_process_data():
+    data = yf.download(ticker, period='1d', interval='1m')
+    
+    if data.empty:
+        st.error("No data fetched from Yahoo Finance.")
+        return None
 
-# Check if data is empty
-if data.empty:
-    st.error("No data fetched from Yahoo Finance.")
-else:
     # Convert index to EST if it's not already timezone-aware
     if data.index.tzinfo is None:
         data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
     else:
         data.index = data.index.tz_convert(est)
 
-    # Calculate technical indicators using the ta library
     try:
         data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
         data['MACD'] = ta.trend.MACD(data['Close']).macd()
@@ -50,212 +50,169 @@ else:
         data['WILLIAMSR'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
     except Exception as e:
         st.error(f"Error calculating technical indicators: {e}")
+        return None
 
-    # Drop rows with NaN values
     data.dropna(inplace=True)
-
-    # Check if data is still empty after dropping NaNs
     if data.empty:
         st.error("Data is empty after processing.")
+        return None
+
+    return data
+
+# Function to calculate Fibonacci retracement levels
+def fibonacci_retracement(high, low):
+    diff = high - low
+    levels = [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
+    return levels
+
+# Function to detect Doji candlestick patterns
+def detect_doji(data):
+    threshold = 0.001  # Define a threshold for identifying Doji
+    data['Doji'] = abs(data['Close'] - data['Open']) / (data['High'] - data['Low']) < threshold
+    return data
+
+# Function to calculate support and resistance levels
+def calculate_support_resistance(data, window=5):
+    data['Support'] = data['Low'].rolling(window=window).min()
+    data['Resistance'] = data['High'].rolling(window=window).max()
+    return data
+
+# Function to generate trading signals
+def generate_signals(indicators, moving_averages, data):
+    signals = {}
+    signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
+    
+    # RSI Signal
+    if indicators['RSI'] < 30:
+        signals['RSI'] = 'Buy'
+    elif indicators['RSI'] > 70:
+        signals['RSI'] = 'Sell'
     else:
-        # Calculate Fibonacci retracement levels
-        def fibonacci_retracement(high, low):
-            diff = high - low
-            levels = [high - diff * ratio for ratio in [0.236, 0.382, 0.5, 0.618, 0.786]]
-            return levels
+        signals['RSI'] = 'Neutral'
+    
+    # MACD Signal
+    if indicators['MACD'] > 0:
+        signals['MACD'] = 'Buy'
+    else:
+        signals['MACD'] = 'Sell'
+    
+    # ADX Signal
+    if indicators['ADX'] > 25:
+        signals['ADX'] = 'Buy'
+    else:
+        signals['ADX'] = 'Neutral'
+    
+    # CCI Signal
+    if indicators['CCI'] > 100:
+        signals['CCI'] = 'Buy'
+    elif indicators['CCI'] < -100:
+        signals['CCI'] = 'Sell'
+    else:
+        signals['CCI'] = 'Neutral'
+    
+    # Moving Averages Signal
+    signals['MA'] = 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
+    
+    return signals
 
-        high = data['High'].max()
-        low = data['Low'].min()
-        fib_levels = fibonacci_retracement(high, low)
+# Function to handle Iron Condor Strategy
+def iron_condor_strategy(data):
+    current_price = data['Close'].iloc[-1]
+    put_strike_short = current_price - 5000
+    put_strike_long = current_price - 6000
+    call_strike_short = current_price + 5000
+    call_strike_long = current_price + 6000
 
-        # Detect Doji candlestick patterns
-        def detect_doji(data):
-            threshold = 0.001  # Define a threshold for identifying Doji
-            data['Doji'] = abs(data['Close'] - data['Open']) / (data['High'] - data['Low']) < threshold
-            return data
+    entry_signal = 'Neutral'
+    if put_strike_short < current_price < call_strike_short:
+        entry_signal = 'Entry'
 
-        data = detect_doji(data)
+    stop_loss = max(abs(current_price - put_strike_short), abs(call_strike_short - current_price))
+    take_profit = max(abs(current_price - put_strike_long), abs(call_strike_long - current_price))
 
-        # Calculate support and resistance levels
-        def calculate_support_resistance(data, window=5):
-            data['Support'] = data['Low'].rolling(window=window).min()
-            data['Resistance'] = data['High'].rolling(window=window).max()
-            return data
+    return {
+        'Entry Signal': entry_signal,
+        'Stop-Loss': stop_loss,
+        'Take-Profit': take_profit
+    }
 
-        data = calculate_support_resistance(data)
+# Function to handle trade decisions
+def decision_logic(signals, iron_condor_signals):
+    decision = 'Neutral'
+    if signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and iron_condor_signals['Entry Signal'] == 'Entry':
+        decision = 'Go Long'
+    elif signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell' and iron_condor_signals['Entry Signal'] == 'Entry':
+        decision = 'Go Short'
+    return decision
 
-        # Add chart to display support and resistance levels
-        st.title('Bitcoin Technical Analysis and Signal Summary')
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], name='Close'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Support'], name='Support', line=dict(dash='dash')))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], name='Resistance', line=dict(dash='dash')))
-        fig.update_layout(title='Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
-        st.plotly_chart(fig)
+# Main function
+def main():
+    data = fetch_and_process_data()
+    if data is None:
+        return
 
-        # Generate summary of technical indicators
-        def technical_indicators_summary(data):
-            indicators = {
-                'RSI': data['RSI'].iloc[-1],
-                'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
-                'STOCH': data['STOCH'].iloc[-1],
-                'ADX': data['ADX'].iloc[-1],
-                'CCI': data['CCI'].iloc[-1],
-                'BULLBEAR': data['BULLBEAR'].iloc[-1],
-                'UO': data['UO'].iloc[-1],
-                'ROC': data['ROC'].iloc[-1],
-                'WILLIAMSR': data['WILLIAMSR'].iloc[-1]
-            }
-            return indicators
+    high = data['High'].max()
+    low = data['Low'].min()
+    fib_levels = fibonacci_retracement(high, low)
+    data = detect_doji(data)
+    data = calculate_support_resistance(data)
 
-        indicators = technical_indicators_summary(data)
+    indicators = technical_indicators_summary(data)
+    moving_averages = moving_averages_summary(data)
+    signals = generate_signals(indicators, moving_averages, data)
+    iron_condor_signals = iron_condor_strategy(data)
+    trade_decision = decision_logic(signals, iron_condor_signals)
 
-        # Generate summary of moving averages
-        def moving_averages_summary(data):
-            ma = {
-                'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
-                'MA10': data['Close'].rolling(window=10).mean().iloc[-1],
-                'MA20': data['Close'].rolling(window=20).mean().iloc[-1],
-                'MA50': data['Close'].rolling(window=50).mean().iloc[-1],
-                'MA100': data['Close'].rolling(window=100).mean().iloc[-1],
-                'MA200': data['Close'].rolling(window=200).mean().iloc[-1]
-            }
-            return ma
+    st.title('Bitcoin Technical Analysis and Signal Summary')
 
-        moving_averages = moving_averages_summary(data)
+    # Display results
+    st.subheader('Technical Indicators')
+    for key, value in indicators.items():
+        st.write(f"{key}: {value:.2f}")
 
-        # Generate buy/sell signals based on indicators and moving averages
-        def generate_signals(indicators, moving_averages, data):
-            signals = {}
-            signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
-            
-            # RSI Signal
-            if indicators['RSI'] < 30:
-                signals['RSI'] = 'Buy'
-            elif indicators['RSI'] > 70:
-                signals['RSI'] = 'Sell'
-            else:
-                signals['RSI'] = 'Neutral'
-            
-            # MACD Signal
-            if indicators['MACD'] > 0:
-                signals['MACD'] = 'Buy'
-            else:
-                signals['MACD'] = 'Sell'
-            
-            # ADX Signal
-            if indicators['ADX'] > 25:
-                signals['ADX'] = 'Buy'
-            else:
-                signals['ADX'] = 'Neutral'
-            
-            # CCI Signal
-            if indicators['CCI'] > 100:
-                signals['CCI'] = 'Buy'
-            elif indicators['CCI'] < -100:
-                signals['CCI'] = 'Sell'
-            else:
-                signals['CCI'] = 'Neutral'
-            
-            # Moving Averages Signal
-            signals['MA'] = 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
-            
-            return signals
+    st.subheader('Moving Averages')
+    for key, value in moving_averages.items():
+        st.write(f"{key}: {value:.2f}")
 
-        signals = generate_signals(indicators, moving_averages, data)
+    st.subheader('Trading Signals')
+    for key, value in signals.items():
+        st.write(f"{key}: {value}")
 
-        # Iron Condor Strategy
-        def iron_condor_strategy(data):
-            """Calculate Iron Condor strategy signals."""
-            current_price = data['Close'].iloc[-1]
-            # Define strike prices for Iron Condor
-            put_strike_short = current_price - 5000  # Example strike prices
-            put_strike_long = current_price - 6000
-            call_strike_short = current_price + 5000
-            call_strike_long = current_price + 6000
+    st.subheader('Iron Condor Strategy Signals')
+    st.write(f"Entry Signal: {iron_condor_signals['Entry Signal']}")
+    st.write(f"Stop-Loss: {iron_condor_signals['Stop-Loss']:.2f}")
+    st.write(f"Take-Profit: {iron_condor_signals['Take-Profit']:.2f}")
 
-            # Entry signal
-            entry_signal = 'Neutral'
-            if put_strike_short < current_price < call_strike_short:
-                entry_signal = 'Entry'
+    st.subheader('Trade Decision')
+    st.write(f"Trade Recommendation: {trade_decision}")
 
-            # Stop-loss and Take-profit levels
-            stop_loss = max(abs(current_price - put_strike_short), abs(call_strike_short - current_price))
-            take_profit = max(abs(current_price - put_strike_long), abs(call_strike_long - current_price))
+    # Fear and Greed Index
+    try:
+        fear_and_greed_value = 50  # Replace with actual value
+        fear_and_greed_classification = "Neutral"  # Replace with actual classification
+        st.subheader('Fear and Greed Index')
+        st.write(f"Value: {fear_and_greed_value}")
+        st.write(f"Classification: {fear_and_greed_classification}")
+    except Exception as e:
+        st.error(f"Error fetching Fear and Greed Index: {e}")
 
-            return {
-                'Entry Signal': entry_signal,
-                'Stop-Loss': stop_loss,
-                'Take-Profit': take_profit
-            }
-
-        iron_condor_signals = iron_condor_strategy(data)
-
-        # Decision Logic for Going Long or Short
-        def decision_logic(signals, iron_condor_signals):
-            """Determine whether to go long or short based on signals."""
-            decision = 'Neutral'
-            if signals['RSI'] == 'Buy' and signals['MACD'] == 'Buy' and iron_condor_signals['Entry Signal'] == 'Entry':
-                decision = 'Go Long'
-            elif signals['RSI'] == 'Sell' and signals['MACD'] == 'Sell' and iron_condor_signals['Entry Signal'] == 'Entry':
-                decision = 'Go Short'
-            return decision
-
-        trade_decision = decision_logic(signals, iron_condor_signals)
-
-        # Display results in the Streamlit app
-        st.subheader('Technical Indicators')
-        for key, value in indicators.items():
-            st.write(f"{key}: {value:.2f}")
-
-        st.subheader('Moving Averages')
-        for key, value in moving_averages.items():
-            st.write(f"{key}: {value:.2f}")
-
-        st.subheader('Trading Signals')
-        for key, value in signals.items():
-            st.write(f"{key}: {value}")
-
-        st.subheader('Iron Condor Strategy Signals')
-        st.write(f"Entry Signal: {iron_condor_signals['Entry Signal']}")
-        st.write(f"Stop-Loss: {iron_condor_signals['Stop-Loss']:.2f}")
-        st.write(f"Take-Profit: {iron_condor_signals['Take-Profit']:.2f}")
-
-        st.subheader('Trade Decision')
-        st.write(f"Trade Recommendation: {trade_decision}")
-
-        # Assuming the Fear and Greed Index is fetched from an API or similar source
-        try:
-            fear_and_greed_value = 50  # Replace with actual value from API or data source
-            fear_and_greed_classification = "Neutral"  # Replace with classification based on actual value
-            st.subheader('Fear and Greed Index')
-            st.write(f"Value: {fear_and_greed_value}")
-            st.write(f"Classification: {fear_and_greed_classification}")
-        except Exception as e:
-            st.error(f"Error fetching Fear and Greed Index: {e}")
-
-        # Calculate signal accuracy
-        actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
-        accuracy = calculate_signal_accuracy(signals, actual_signals)
-        st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
-        
-        # Store actual market outcomes
-        actual_outcomes = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
-        
-        # Compare signals with actual outcomes
-        win_loss_ratio = 0
-        for signal in signals:
-            if signals[signal] == actual_outcomes.get(signal):
-                win_loss_ratio += 1
-            else:
-                win_loss_ratio -= 1
-        
-        # Update accuracy percentage
-        accuracy_percentage = (win_loss_ratio / len(signals)) * 100
-        
-        # Display performance metrics
-        st.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
-        st.write(f"Accuracy Percentage: {accuracy_percentage:.2f}")
+    # Calculate and display signal accuracy
+    actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
+    accuracy = calculate_signal_accuracy(signals, actual_signals)
+    st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
+    
+    # Calculate and display performance metrics
+    actual_outcomes = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
+    win_loss_ratio = 0
+    for signal in signals:
+        if signals[signal] == actual_outcomes.get(signal):
+            win_loss_ratio += 1
+        else:
+            win_loss_ratio -= 1
+    
+    accuracy_percentage = (win_loss_ratio / len(signals)) * 100
+    st.write(f"Win/Loss Ratio: {win_loss_ratio:.2f}")
+    st.write(f"Accuracy Percentage: {accuracy_percentage:.2f}")
 
 if __name__ == '__main__':
     main()
