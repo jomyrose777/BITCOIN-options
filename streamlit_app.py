@@ -6,7 +6,6 @@ import ta
 import pytz
 from datetime import datetime
 import plotly.graph_objects as go
-import requests
 import time
 import threading
 
@@ -95,7 +94,7 @@ def moving_averages_summary(data):
     return ma
 
 # Function to generate weighted signals
-def generate_weighted_signals(indicators, moving_averages, data):
+def generate_weighted_signals(indicators, moving_averages):
     weights = {
         'RSI': 0.2,
         'MACD': 0.3,
@@ -113,7 +112,14 @@ def generate_weighted_signals(indicators, moving_averages, data):
             signals[indicator] = 'Sell'
         else:
             signals[indicator] = 'Neutral'
-    weighted_score = sum([weights[indicator] for indicator, signal in signals.items() if signal == 'Buy']) - sum([weights[indicator] for indicator, signal in signals.items() if signal == 'Sell'])
+
+    weighted_score = sum([weights[indicator] for indicator, signal in signals.items() if signal == 'Buy']) - \
+                     sum([weights[indicator] for indicator, signal in signals.items() if signal == 'Sell'])
+    
+    # Include moving averages in the signal if needed
+    for ma in moving_averages:
+        signals[ma] = 'Neutral'
+
     return signals, weighted_score
 
 # Function to log signals with additional details
@@ -127,11 +133,11 @@ def log_signals(signals, decision, entry_point_long, entry_point_short, take_pro
     # Add new log
     new_log = pd.DataFrame([{
         'timestamp': datetime.now(est).strftime('%Y-%m-%d %H:%M:%S'),
-        'RSI': signals['RSI'],
-        'MACD': signals['MACD'],
-        'ADX': signals['ADX'],
-        'CCI': signals['CCI'],
-        'MA': signals['MA'],
+        'RSI': signals.get('RSI', 'N/A'),
+        'MACD': signals.get('MACD', 'N/A'),
+        'ADX': signals.get('ADX', 'N/A'),
+        'CCI': signals.get('CCI', 'N/A'),
+        'MA': signals.get('MA', 'N/A'),  # Adjusted for potential MA missing keys
         'Entry Point Long': entry_point_long,
         'Entry Point Short': entry_point_short,
         'Take Profit': take_profit,
@@ -144,7 +150,7 @@ def log_signals(signals, decision, entry_point_long, entry_point_short, take_pro
 
 # Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
-    signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
+    signals, weighted_score = generate_weighted_signals(indicators, moving_averages)
     
     if not isinstance(signals, dict):
         st.error("Error: Signals is not a dictionary.")
@@ -195,15 +201,14 @@ def main():
         
         decision, entry_point_long, entry_point_short, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
         
-        if decision == 'Error':
-            st.error("Trading Decision could not be generated.")
-        else:
-            st.write("Trading Decision:")
-            st.write(decision)
-            st.write(f"Take Profit Level: {take_profit:.2f}")
-            st.write(f"Stop Loss Level: {stop_loss:.2f}")
+        st.write(f"Decision: {decision}")
+        st.write(f"Entry Point Long: {entry_point_long}")
+        st.write(f"Entry Point Short: {entry_point_short}")
+        st.write(f"Take Profit: {take_profit}")
+        st.write(f"Stop Loss: {stop_loss}")
 
-            # Plot the closing price and technical indicators
+        # Plot Bitcoin price and moving averages
+        if st.checkbox("Show Price and Moving Averages"):
             fig = go.Figure()
             fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close'))
             fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
