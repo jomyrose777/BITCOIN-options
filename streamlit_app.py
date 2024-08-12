@@ -124,6 +124,10 @@ def generate_weighted_signals(indicators, moving_averages, data):
         for key in missing_keys:
             signals[key] = 'Neutral'
     
+    if not isinstance(signals, dict):
+        st.error("Error: Signals is not a dictionary.")
+        return {'Error': 'Signals is not a dictionary.'}
+    
     weighted_score = sum([
         weights.get(key, 0) if value == 'Buy' else -weights.get(key, 0)
         for key, value in signals.items()
@@ -132,12 +136,7 @@ def generate_weighted_signals(indicators, moving_averages, data):
     st.write("Signals:", signals)  # Debugging line
     st.write("Weighted Score:", weighted_score)  # Debugging line
     
-    if weighted_score > 0:
-        return 'Go Long'
-    elif weighted_score < 0:
-        return 'Go Short'
-    else:
-        return 'Neutral'
+    return signals, weighted_score
 
 # Function to generate signals based on indicators and moving averages
 def generate_signals(indicators, moving_averages, data):
@@ -206,13 +205,12 @@ def fetch_fear_and_greed_index():
 
 # Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
-    signals = generate_weighted_signals(indicators, moving_averages, data)
+    signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
     
     if not isinstance(signals, dict):
         st.error("Error: Signals is not a dictionary.")
-        return 'Error', None, None
+        return 'Error', 0, 0
 
-    # Decision making
     buy_signals = [value for key, value in signals.items() if value == 'Buy']
     sell_signals = [value for key, value in signals.items() if value == 'Sell']
     
@@ -254,20 +252,23 @@ if data is not None:
     
     decision, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
     
-    st.write("Trading Decision:")
-    st.write(decision)
-    st.write(f"Take Profit Level: {take_profit:.2f}")
-    st.write(f"Stop Loss Level: {stop_loss:.2f}")
+    if decision == 'Error':
+        st.error("Trading Decision could not be generated.")
+    else:
+        st.write("Trading Decision:")
+        st.write(decision)
+        st.write(f"Take Profit Level: {take_profit:.2f}")
+        st.write(f"Stop Loss Level: {stop_loss:.2f}")
 
-    # Plot the closing price and technical indicators
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['Support'], mode='lines', name='Support', line=dict(color='green', dash='dash')))
-    fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], mode='lines', name='Resistance', line=dict(color='red', dash='dash')))
-    fig.update_layout(title='Bitcoin Price with Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
-    st.plotly_chart(fig)
+        # Plot the closing price and technical indicators
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
+        fig.add_trace(go.Scatter(x=data.index, y=data['Support'], mode='lines', name='Support', line=dict(color='green', dash='dash')))
+        fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], mode='lines', name='Resistance', line=dict(color='red', dash='dash')))
+        fig.update_layout(title='Bitcoin Price with Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
+        st.plotly_chart(fig)
     
-    # Fetch and display Fear and Greed Index
-    fear_and_greed_index, classification = fetch_fear_and_greed_index()
-    st.write("Fear and Greed Index:")
-    st.write(f"{fear_and_greed_index} ({classification})")
+        # Fetch and display Fear and Greed Index
+        fear_and_greed_index, classification = fetch_fear_and_greed_index()
+        st.write("Fear and Greed Index:")
+        st.write(f"{fear_and_greed_index} ({classification})")
