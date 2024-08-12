@@ -127,8 +127,10 @@ def log_signals(signals, decision, entry_point_long, entry_point_short, take_pro
     log_file = 'signals_log.csv'
     try:
         logs = pd.read_csv(log_file)
-    except FileNotFoundError:
+    except (FileNotFoundError, pandas.errors.EmptyDataError):
         logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point Long', 'Entry Point Short', 'Take Profit', 'Stop Loss', 'Decision', 'Weighted Score'])
+    
+    # Rest of the function remains the same
 
     # Add new log
     new_log = pd.DataFrame([{
