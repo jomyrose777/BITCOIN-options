@@ -205,6 +205,7 @@ def fetch_fear_and_greed_index():
 
 # Function to generate a perpetual options decision
 # Function to generate a perpetual options decision
+# Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
     signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
     
@@ -233,8 +234,6 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     stop_loss = data['Close'].iloc[-1] * (1 + stop_loss_pct)
     
     log_signals(signals, decision, entry_point_long, entry_point_short, take_profit, stop_loss)
-    
-    return decision, entry_point_long, entry_point_short, take_profit, stop_loss
 
 # Main app logic
 st.title("Bitcoin Trading Signals")
