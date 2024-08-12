@@ -68,14 +68,14 @@ def calculate_indicators(data):
     
     # Williams %R
     try:
-        williams_r = ta.momentum.WilliamsRIndicator(high=data['High'], low=data['Low'], close=data['Close'], window=14)
+        williams_r = ta.momentum.WilliamsRIndicator(high=data['High'], low=data['Low'], close=data['Close'])
         data['Williams %R'] = williams_r.williams_r()
-    except Exception as e:
+    except TypeError as e:
         st.error(f"Error calculating Williams %R: {e}")
         data['Williams %R'] = np.nan  # Assign NaN if there's an error
 
     # Money Flow Index (MFI)
-    mfi = ta.volume.MFIIndicator(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'], window=14)
+    mfi = ta.volume.MFIIndicator(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'])
     data['MFI'] = mfi.money_flow_index()
 
     # Stochastic Oscillator
@@ -95,8 +95,12 @@ def calculate_indicators(data):
     data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
 
     # Parabolic SAR
-    sar = ta.trend.PSARIndicator(high=data['High'], low=data['Low'], close=data['Close'], acceleration=0.02, max_acceleration=0.2)
-    data['SAR'] = sar.psar()
+    try:
+        sar = ta.trend.PSARIndicator(high=data['High'], low=data['Low'], close=data['Close'])
+        data['SAR'] = sar.psar()
+    except TypeError as e:
+        st.error(f"Error calculating PSAR: {e}")
+        data['SAR'] = np.nan  # Assign NaN if there's an error
 
     # VWAP
     vwap = ta.volume.VolumeWeightedAveragePrice(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'])
@@ -108,7 +112,6 @@ def calculate_indicators(data):
 
     data.dropna(inplace=True)
     return data
-
 
 # Function to calculate summary of indicators
 def technical_indicators_summary(data):
