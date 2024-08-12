@@ -25,11 +25,12 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
 def fetch_data(ticker: str) -> pd.DataFrame:
     """Fetch historical data from Yahoo Finance."""
     try:
-        data = yf.download(ticker, period='3d', interval='30m')  # Increase period to 3 days
-        if data.index.tzinfo is None:
-            data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
-        else:
-            data.index = data.index.tz_convert(est)
+        data = yf.download(ticker, period='3d', interval='30m')
+        data.reset_index(inplace=True)  # Reset index
+        data['Date'] = pd.to_datetime(data['Date'])  # Convert to datetime
+        data.set_index('Date', inplace=True)  # Set index
+        data.index = data.index.tz_localize('UTC')  # Set timezone to UTC
+        data.index = data.index.tz_convert(est)  # Convert to EST
         return data
     except Exception as e:
         st.error(f"Error fetching data: {e}")
