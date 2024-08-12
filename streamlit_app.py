@@ -8,17 +8,7 @@ from datetime import datetime
 import plotly.graph_objects as go
 import requests
 import time
-
-# Refresh the app every 60 seconds
-def refresh_app():
-    while True:
-        st.experimental_rerun()
-        time.sleep(60)
-
-if st.session_state.get("refresh_started", False) is False:
-    import threading
-    threading.Thread(target=refresh_app, daemon=True).start()
-    st.session_state.refresh_started = True
+import threading
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
@@ -109,102 +99,49 @@ def generate_weighted_signals(indicators, moving_averages, data):
     weights = {
         'RSI': 0.2,
         'MACD': 0.3,
-        'ADX': 0.2,
-        'CCI': 0.2,
-        'MA': 0.1
+        'STOCH': 0.1,
+        'ADX': 0.1,
+        'CCI': 0.1,
+        'ROC': 0.1,
+        'WILLIAMSR': 0.1
     }
-    
-    signals = generate_signals(indicators, moving_averages, data)
-    
-    # Ensure all keys from weights are present in signals
-    missing_keys = [key for key in weights if key not in signals]
-    if missing_keys:
-        st.warning(f"Missing signals for: {', '.join(missing_keys)}")
-        # Provide default values for missing keys if needed
-        for key in missing_keys:
-            signals[key] = 'Neutral'
-    
-    if not isinstance(signals, dict):
-        st.error("Error: Signals is not a dictionary.")
-        return {'Error': 'Signals is not a dictionary.'}
-    
-    weighted_score = sum([
-        weights.get(key, 0) if value == 'Buy' else -weights.get(key, 0)
-        for key, value in signals.items()
-    ])
-    
-    st.write("Signals:", signals)  # Debugging line
-    st.write("Weighted Score:", weighted_score)  # Debugging line
-    
+    signals = {}
+    for indicator, value in indicators.items():
+        if value > 0:
+            signals[indicator] = 'Buy'
+        elif value < 0:
+            signals[indicator] = 'Sell'
+        else:
+            signals[indicator] = 'Neutral'
+    weighted_score = sum([weights[indicator] for indicator, signal in signals.items() if signal == 'Buy']) - sum([weights[indicator] for indicator, signal in signals.items() if signal == 'Sell'])
     return signals, weighted_score
 
-# Function to generate signals based on indicators and moving averages
-def generate_signals(indicators, moving_averages, data):
-    signals = {}
-    last_timestamp = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
-    signals['timestamp'] = last_timestamp
-    
-    # RSI Signal
-    if indicators['RSI'] < 30:
-        signals['RSI'] = 'Buy'
-    elif indicators['RSI'] > 70:
-        signals['RSI'] = 'Sell'
-    else:
-        signals['RSI'] = 'Neutral'
-    
-    # MACD Signal
-    signals['MACD'] = 'Buy' if indicators['MACD'] > 0 else 'Sell'
-    
-    # ADX Signal
-    signals['ADX'] = 'Buy' if indicators['ADX'] > 25 else 'Neutral'
-    
-    # CCI Signal
-    if indicators['CCI'] > 100:
-        signals['CCI'] = 'Buy'
-    elif indicators['CCI'] < -100:
-        signals['CCI'] = 'Sell'
-    else:
-        signals['CCI'] = 'Neutral'
-    
-    # Moving Averages Signal
-    signals['MA'] = 'Buy' if moving_averages['MA5'] > moving_averages['MA10'] else 'Sell'
-    
-    return signals
-
 # Function to log signals with additional details
-def log_signals(signals, decision, entry_point, take_profit, stop_loss):
+def log_signals(signals, decision, entry_point_long, entry_point_short, take_profit, stop_loss, weighted_score):
     log_file = 'signals_log.csv'
     try:
         logs = pd.read_csv(log_file)
     except FileNotFoundError:
-        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point', 'Take Profit', 'Stop Loss', 'Decision'])
+        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point Long', 'Entry Point Short', 'Take Profit', 'Stop Loss', 'Decision', 'Weighted Score'])
 
     # Add new log
     new_log = pd.DataFrame([{
-        'timestamp': signals['timestamp'],
+        'timestamp': datetime.now(est).strftime('%Y-%m-%d %H:%M:%S'),
         'RSI': signals['RSI'],
         'MACD': signals['MACD'],
         'ADX': signals['ADX'],
         'CCI': signals['CCI'],
         'MA': signals['MA'],
-        'Entry Point': entry_point,
+        'Entry Point Long': entry_point_long,
+        'Entry Point Short': entry_point_short,
         'Take Profit': take_profit,
         'Stop Loss': stop_loss,
-        'Decision': decision
+        'Decision': decision,
+        'Weighted Score': weighted_score
     }])
     logs = pd.concat([new_log, logs], ignore_index=True)
     logs.to_csv(log_file, index=False)
 
-# Function to fetch Fear and Greed Index
-def fetch_fear_and_greed_index():
-    url = "https://api.alternative.me/fng/"
-    response = requests.get(url)
-    data = response.json()
-    latest_data = data['data'][0]
-    return latest_data['value'], latest_data['value_classification']
-
-# Function to generate a perpetual options decision
-# Function to generate a perpetual options decision
 # Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
     signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
@@ -233,45 +170,63 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     take_profit = data['Close'].iloc[-1] * (1 + take_profit_pct)
     stop_loss = data['Close'].iloc[-1] * (1 + stop_loss_pct)
     
-    log_signals(signals, decision, entry_point_long, entry_point_short, take_profit, stop_loss)
+    log_signals(signals, decision, entry_point_long, entry_point_short, take_profit, stop_loss, weighted_score)
+    
+    return decision, entry_point_long, entry_point_short, take_profit, stop_loss
 
 # Main app logic
-st.title("Bitcoin Trading Signals")
+def main():
+    st.title("Bitcoin Trading Signals")
 
-data = fetch_data(ticker)
-if data is not None:
-    data = calculate_indicators(data)
-    data = calculate_support_resistance(data)
-    data = detect_doji(data)
+    data = fetch_data(ticker)
+    if data is not None:
+        data = calculate_indicators(data)
+        data = calculate_support_resistance(data)
+        data = detect_doji(data)
 
-    indicators = technical_indicators_summary(data)
-    moving_averages = moving_averages_summary(data)
-    
-    st.write("Technical Indicators:")
-    st.write(indicators)
-    
-    st.write("Moving Averages:")
-    st.write(moving_averages)
-    
-    decision, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
-    
-    if decision == 'Error':
-        st.error("Trading Decision could not be generated.")
-    else:
-        st.write("Trading Decision:")
-        st.write(decision)
-        st.write(f"Take Profit Level: {take_profit:.2f}")
-        st.write(f"Stop Loss Level: {stop_loss:.2f}")
+        indicators = technical_indicators_summary(data)
+        moving_averages = moving_averages_summary(data)
+        
+        st.write("Technical Indicators:")
+        st.write(indicators)
+        
+        st.write("Moving Averages:")
+        st.write(moving_averages)
+        
+        decision, entry_point_long, entry_point_short, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
+        
+        if decision == 'Error':
+            st.error("Trading Decision could not be generated.")
+        else:
+            st.write("Trading Decision:")
+            st.write(decision)
+            st.write(f"Take Profit Level: {take_profit:.2f}")
+            st.write(f"Stop Loss Level: {stop_loss:.2f}")
 
-        # Plot the closing price and technical indicators
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Support'], mode='lines', name='Support', line=dict(color='green', dash='dash')))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], mode='lines', name='Resistance', line=dict(color='red', dash='dash')))
-        fig.update_layout(title='Bitcoin Price with Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
-        st.plotly_chart(fig)
+            # Plot the closing price and technical indicators
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close'))
+            fig.add_trace(go.Scatter(x=data.index, y=data['MA5'], mode='lines', name='MA5'))
+            fig.add_trace(go.Scatter(x=data.index, y=data['MA10'], mode='lines', name='MA10'))
+            fig.add_trace(go.Scatter(x=data.index, y=data['MA20'], mode='lines', name='MA20'))
+            fig.add_trace(go.Scatter(x=data.index, y=data['MA50'], mode='lines', name='MA50'))
+            fig.add_trace(go.Scatter(x=data.index, y=data['MA100'], mode='lines', name='MA100'))
+            fig.update_layout(title='Bitcoin Price and Moving Averages', xaxis_title='Date', yaxis_title='Price')
+            st.plotly_chart(fig)
+        
+        # Add a refresh button
+        if st.button('Refresh'):
+            st.experimental_rerun()
     
-        # Fetch and display Fear and Greed Index
-        fear_and_greed_index, classification = fetch_fear_and_greed_index()
-        st.write("Fear and Greed Index:")
-        st.write(f"{fear_and_greed_index} ({classification})")
+    # Add periodic auto-refresh
+    def auto_refresh():
+        while True:
+            time.sleep(30)
+            st.experimental_rerun()
+
+    if st.session_state.get('refresh_thread') is None:
+        st.session_state['refresh_thread'] = threading.Thread(target=auto_refresh, daemon=True)
+        st.session_state['refresh_thread'].start()
+
+if __name__ == "__main__":
+    main()
