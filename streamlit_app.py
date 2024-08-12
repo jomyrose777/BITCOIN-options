@@ -8,11 +8,7 @@ import pytz
 from datetime import datetime
 import plotly.graph_objects as go
 import requests
-import logging
 from typing import Dict, Tuple, List
-
-# Set up logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
@@ -29,33 +25,31 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
 def fetch_data(ticker: str) -> pd.DataFrame:
     """Fetch historical data from Yahoo Finance."""
     try:
-        data = yf.download(ticker, period='1d', interval='30m')
-        if data.empty:
-            st.warning("No data returned. Please check the ticker symbol.")
-            logging.warning(f"No data returned for ticker {ticker}.")
-            return pd.DataFrame()
-        
-        if data.index.tzinfo is None:
-            data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
-        else:
-            data.index = data.index.tz_convert(est)
+        data = yf.download(ticker, period='3d', interval='30m')
+        print(f"Fetched data: {data.shape}")  # Print data shape
+        data.reset_index(inplace=True)  # Reset index
+        data['Date'] = pd.to_datetime(data['Date'])  # Convert to datetime
+        data.set_index('Date', inplace=True)  # Set index
+        data.index = data.index.tz_localize('UTC')  # Set timezone to UTC
+        data.index = data.index.tz_convert(est)  # Convert to EST
         return data
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
-        logging.error(f"Error fetching data for ticker {ticker}: {e}")
+        print(f"Error fetching data: {e}")  # Print error message
         return pd.DataFrame()
 
 # Calculate technical indicators using the ta library
-def calculate_indicators(data: pd.DataFrame, rsi_window: int = 14, macd_window_short: int = 12, macd_window_long: int = 26, macd_signal_window: int = 9) -> pd.DataFrame:
+def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate technical indicators."""
-    if len(data) < max(rsi_window, macd_window_long):
+    # Ensure there are enough data points
+    if len(data) < 14:
         st.error("Not enough data to calculate indicators. Please check the data length.")
-        logging.error("Not enough data to calculate indicators.")
         return data
     
+    data = data.dropna()
+
     try:
-        data['RSI'] = momentum.RSIIndicator(data['Close'], window=rsi_window).rsi()
-        macd = trend.MACD(data['Close'], window_slow=macd_window_long, window_fast=macd_window_short, window_sign=macd_signal_window)
+        data['RSI'] = momentum.RSIIndicator(data['Close'], window=14).rsi()
+        macd = trend.MACD(data['Close'])
         data['MACD'] = macd.macd()
         data['MACD_Signal'] = macd.macd_signal()
         data['STOCH'] = momentum.StochasticOscillator(data['High'], data['Low'], data['Close']).stoch()
@@ -65,7 +59,6 @@ def calculate_indicators(data: pd.DataFrame, rsi_window: int = 14, macd_window_s
         data['WILLIAMSR'] = momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close']).williams_r()
     except Exception as e:
         st.error(f"Error calculating indicators: {e}")
-        logging.error(f"Error calculating indicators: {e}")
     
     return data
 
@@ -91,7 +84,7 @@ def calculate_support_resistance(data: pd.DataFrame, window: int = 5) -> pd.Data
     return data
 
 # Generate trading signals based on indicators and moving averages
-def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, float], rsi_buy_threshold: float = 30, rsi_sell_threshold: float = 70, cci_buy_threshold: float = -100, cci_sell_threshold: float = 100) -> Dict[str, str]:
+def generate_signals(indicators: Dict[str, float], moving_averages: Dict[str, float] = {}, rsi_buy_threshold: float = 30, rsi_sell_threshold: float = 70, cci_buy_threshold: float = -100, cci_sell_threshold: float = 100) -> Dict[str, str]:
     """Generate trading signals based on indicators and moving averages."""
     def get_signal(value, buy_threshold, sell_threshold):
         if value < buy_threshold:
@@ -166,13 +159,11 @@ def fetch_fear_and_greed_index() -> Tuple[str, str]:
         return latest_data['value'], latest_data['value_classification']
     except Exception as e:
         st.error(f"Error fetching Fear and Greed Index: {e}")
-        logging.error(f"Error fetching Fear and Greed Index: {e}")
         return 'N/A', 'N/A'
 
 # Calculate signal accuracy (dummy function for example)
-def calculate_signal_accuracy(signals: Dict[str, str], actual: Dict[str, str]) -> float:
+def calculate_signal_accuracy(signals: Dict[str, str], actual: Dict[str, str] = {}) -> float:
     """Calculate accuracy of signals. Placeholder implementation."""
-    # Dummy implementation: You should replace this with actual calculation or backtesting
     correct_signals = sum(1 for key in signals if signals[key] == actual.get(key, 'Neutral'))
     return correct_signals / len(signals) if signals else 0.0
 
@@ -230,7 +221,6 @@ def main():
     st.write(trade_action)
     
     # Display backtesting results and accuracy metrics
-    # Replace 'actual_signals' with your actual trading results for backtesting
     actual_signals = {'RSI': 'Buy', 'MACD': 'Buy', 'ADX': 'Buy', 'CCI': 'Buy', 'MA': 'Buy'}
     accuracy = calculate_signal_accuracy(signals, actual_signals)
     st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
