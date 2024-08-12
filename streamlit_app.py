@@ -264,9 +264,29 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     log_signals(signals, decision, entry_point, take_profit_level, stop_loss_level)
     
     # Calculate accuracy of signals
-    accuracy = calculate_accuracy()
+    def calculate_accuracy():
+    log_file = 'signals_log.csv'
+    try:
+        logs = pd.read_csv(log_file)
+    except FileNotFoundError:
+        return 0.0
+
+    correct_signals = 0
+    total_signals = len(logs)
     
-    return decision, entry_point, take_profit_level, stop_loss_level, accuracy
+    if total_signals == 0:
+        return 0.0
+
+    for index, row in logs.iterrows():
+        # Check if the decision was correct based on historical data
+        if row['Decision'] == 'Go Long' and row['Take Profit'] > row['Entry Point']:
+            correct_signals += 1
+        elif row['Decision'] == 'Go Short' and row['Stop Loss'] < row['Entry Point']:
+            correct_signals += 1
+    
+    accuracy = correct_signals / total_signals * 100
+    st.write("Accuracy Log:", accuracy)
+    return accuracy
 
 
 # Main app logic
