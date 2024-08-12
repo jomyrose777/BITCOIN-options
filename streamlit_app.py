@@ -17,7 +17,9 @@ est = pytz.timezone('America/New_York')
 
 # Function to convert datetime to EST
 def to_est(dt):
-    return dt.tz_convert(est) if dt.tzinfo else est.localize(dt)
+    if dt.tzinfo is None:
+        dt = est.localize(dt)
+    return dt.astimezone(est)
 
 # Function to fetch live data from Yahoo Finance
 @st.cache_data(ttl=30)
@@ -94,7 +96,12 @@ def moving_averages_summary(data):
 # Function to generate buy/sell signals based on indicators and moving averages
 def generate_signals(indicators, moving_averages):
     signals = {}
-    signals['timestamp'] = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
+    try:
+        last_timestamp = to_est(data.index[-1])
+        signals['timestamp'] = last_timestamp.strftime('%Y-%m-%d %I:%M:%S %p')
+    except Exception as e:
+        st.error(f"Error processing timestamp: {e}")
+        signals['timestamp'] = 'N/A'
     
     # RSI Signal
     if indicators['RSI'] < 30:
@@ -212,7 +219,7 @@ def update_data():
         take_profit_level = entry_point * (1 + take_profit_pct)
         stop_loss_level = entry_point * (1 - stop_loss_pct)
 
-        st.subheader('Signals')
+        # Display results
         st.write(f"Timestamp: {signals['timestamp']}")
         st.write(f"RSI Signal: {signals['RSI']}")
         st.write(f"MACD Signal: {signals['MACD']}")
@@ -227,8 +234,11 @@ def update_data():
         st.write(f"Stop Loss Level: {stop_loss_level}")
 
         # Update accuracy of signals
-        accuracy = calculate_signal_accuracy(pd.read_csv('signals_log.csv'), signals)
-        st.write(f"Signal Accuracy: {accuracy}")
+        try:
+            accuracy = calculate_signal_accuracy(pd.read_csv('signals_log.csv'), signals)
+            st.write(f"Signal Accuracy: {accuracy}")
+        except Exception as e:
+            st.error(f"Error calculating signal accuracy: {e}")
 
         # Wait for next update
         time.sleep(30)
