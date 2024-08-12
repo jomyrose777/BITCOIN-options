@@ -8,25 +8,31 @@ from datetime import datetime
 import plotly.graph_objects as go
 import requests
 import time
-import threading
 
+# Refresh the app every 60 seconds
 def refresh_app():
     while True:
         st.experimental_rerun()
-        time.sleep(30)
+        time.sleep(60)
 
 if st.session_state.get("refresh_started", False) is False:
+    import threading
     threading.Thread(target=refresh_app, daemon=True).start()
     st.session_state.refresh_started = True
 
+# Define the ticker symbol for Bitcoin
 ticker = 'BTC-USD'
+
+# Define the timezone for EST
 est = pytz.timezone('America/New_York')
 
+# Function to convert datetime to EST
 def to_est(dt):
     if dt.tzinfo is None:
         dt = est.localize(dt)
     return dt.astimezone(est)
 
+# Function to fetch live data from Yahoo Finance
 @st.cache_data(ttl=30)
 def fetch_data(ticker):
     try:
@@ -45,6 +51,7 @@ def fetch_data(ticker):
         st.error(f"Error fetching data: {e}")
         return None
 
+# Function to calculate technical indicators
 def calculate_indicators(data):
     data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
     data['MACD'] = ta.trend.MACD(data['Close']).macd()
@@ -57,11 +64,13 @@ def calculate_indicators(data):
     data.dropna(inplace=True)
     return data
 
+# Function to calculate support and resistance levels
 def calculate_support_resistance(data, window=5):
     data['Support'] = data['Low'].rolling(window=window).min()
     data['Resistance'] = data['High'].rolling(window=window).max()
     return data
 
+# Function to detect Doji candlestick patterns
 def detect_doji(data, threshold=0.1):
     data['Doji'] = np.where(
         (data['Close'] - data['Open']).abs() / (data['High'] - data['Low']) < threshold,
@@ -70,16 +79,7 @@ def detect_doji(data, threshold=0.1):
     )
     return data
 
-def calculate_atr(data, window=14):
-    data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close'], window=window).average_true_range()
-    return data
-
-def calculate_atr_based_levels(data, entry_point, atr_multiplier=1.5):
-    atr_value = data['ATR'].iloc[-1]
-    take_profit_level = entry_point + (atr_value * atr_multiplier)
-    stop_loss_level = entry_point - (atr_value * atr_multiplier)
-    return take_profit_level, stop_loss_level
-
+# Function to generate summary of technical indicators
 def technical_indicators_summary(data):
     indicators = {
         'RSI': data['RSI'].iloc[-1],
@@ -92,6 +92,7 @@ def technical_indicators_summary(data):
     }
     return indicators
 
+# Function to generate summary of moving averages
 def moving_averages_summary(data):
     ma = {
         'MA5': data['Close'].rolling(window=5).mean().iloc[-1],
@@ -103,6 +104,7 @@ def moving_averages_summary(data):
     }
     return ma
 
+# Function to generate weighted signals
 def generate_weighted_signals(indicators, moving_averages, data):
     weights = {
         'RSI': 0.2,
@@ -114,7 +116,20 @@ def generate_weighted_signals(indicators, moving_averages, data):
     
     signals = generate_signals(indicators, moving_averages, data)
     
-    weighted_score = sum([weights[key] if value == 'Buy' else -weights[key] for key, value in signals.items()])
+    # Ensure all keys from weights are present in signals
+    missing_keys = [key for key in weights if key not in signals]
+    if missing_keys:
+        st.warning(f"Missing signals for: {', '.join(missing_keys)}")
+        # Provide default values for missing keys if needed
+        for key in missing_keys:
+            signals[key] = 'Neutral'
+    
+    weighted_score = sum([
+        weights.get(key, 0) if value == 'Buy' else -weights.get(key, 0)
+        for key, value in signals.items()
+    ])
+    
+    st.write("Weighted Score:", weighted_score)  # Debugging line
     
     if weighted_score > 0:
         return 'Go Long'
@@ -123,22 +138,7 @@ def generate_weighted_signals(indicators, moving_averages, data):
     else:
         return 'Neutral'
 
-def is_trend_confirmed(moving_averages, signals):
-    trend_up = moving_averages['MA5'] > moving_averages['MA20']
-    trend_down = moving_averages['MA5'] < moving_averages['MA20']
-    
-    if signals == 'Go Long' and trend_up:
-        return True
-    elif signals == 'Go Short' and trend_down:
-        return True
-    else:
-        return False
-
-def calculate_position_size(account_balance, entry_price, stop_loss_level, risk_percentage=1):
-    risk_amount = account_balance * (risk_percentage / 100)
-    position_size = risk_amount / abs(entry_price - stop_loss_level)
-    return position_size
-
+# Function to generate signals based on indicators and moving averages
 def generate_signals(indicators, moving_averages, data):
     signals = {}
     last_timestamp = to_est(data.index[-1]).strftime('%Y-%m-%d %I:%M:%S %p')
@@ -171,6 +171,39 @@ def generate_signals(indicators, moving_averages, data):
     
     return signals
 
+# Function to log signals with additional details
+def log_signals(signals, decision, entry_point, take_profit, stop_loss):
+    log_file = 'signals_log.csv'
+    try:
+        logs = pd.read_csv(log_file)
+    except FileNotFoundError:
+        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point', 'Take Profit', 'Stop Loss', 'Decision'])
+
+    # Add new log
+    new_log = pd.DataFrame([{
+        'timestamp': signals['timestamp'],
+        'RSI': signals['RSI'],
+        'MACD': signals['MACD'],
+        'ADX': signals['ADX'],
+        'CCI': signals['CCI'],
+        'MA': signals['MA'],
+        'Entry Point': entry_point,
+        'Take Profit': take_profit,
+        'Stop Loss': stop_loss,
+        'Decision': decision
+    }])
+    logs = pd.concat([new_log, logs], ignore_index=True)
+    logs.to_csv(log_file, index=False)
+
+# Function to fetch Fear and Greed Index
+def fetch_fear_and_greed_index():
+    url = "https://api.alternative.me/fng/"
+    response = requests.get(url)
+    data = response.json()
+    latest_data = data['data'][0]
+    return latest_data['value'], latest_data['value_classification']
+
+# Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
     signals = generate_weighted_signals(indicators, moving_averages, data)
     
@@ -184,102 +217,55 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
         stop_loss_pct = 0.01
     elif len(sell_signals) > len(buy_signals):
         decision = 'Go Short'
-        take_profit_pct = -0.02
+        take_profit_pct = -0.02  # Note the negative sign
         stop_loss_pct = 0.01
     else:
         decision = 'Neutral'
         take_profit_pct = 0
         stop_loss_pct = 0
-
+    
     entry_point = data['Close'].iloc[-1]
-    take_profit_level = entry_point * (1 + take_profit_pct)
-    stop_loss_level = entry_point * (1 - stop_loss_pct)
+    take_profit = entry_point * (1 + take_profit_pct)
+    stop_loss = entry_point * (1 - stop_loss_pct)
     
-    # Check if trend is confirmed
-    if is_trend_confirmed(moving_averages, decision):
-        position_size = calculate_position_size(account_balance, entry_point, stop_loss_level)
-    else:
-        position_size = 0
+    log_signals(signals, decision, entry_point, take_profit, stop_loss)
     
-    return decision, entry_point, take_profit_level, stop_loss_level, position_size
+    return decision, take_profit, stop_loss
 
-def log_signals(signals, decision, entry_point, take_profit, stop_loss):
-    log_file = 'signals_log.csv'
-    try:
-        logs = pd.read_csv(log_file)
-    except FileNotFoundError:
-        logs = pd.DataFrame(columns=['timestamp', 'RSI', 'MACD', 'ADX', 'CCI', 'MA', 'Entry Point', 'Take Profit', 'Stop Loss', 'Decision'])
+# Main app logic
+st.title("Bitcoin Trading Signals")
 
-    new_log = pd.DataFrame([{
-        'timestamp': signals['timestamp'],
-        'RSI': signals['RSI'],
-        'MACD': signals['MACD'],
-        'ADX': signals['ADX'],
-        'CCI': signals['CCI'],
-        'MA': signals['MA'],
-        'Entry Point': entry_point,
-        'Take Profit': take_profit,
-        'Stop Loss': stop_loss,
-        'Decision': decision
-    }])
-    
-    logs = pd.concat([logs, new_log], ignore_index=True)
-    logs.to_csv(log_file, index=False)
-
-def fetch_fear_greed_index():
-    try:
-        response = requests.get('https://api.alternative.me/fng/?format=json')
-        response.raise_for_status()
-        data = response.json()
-        return data['data'][0]['value'], data['data'][0]['value_classification']
-    except Exception as e:
-        st.error(f"Error fetching Fear and Greed Index: {e}")
-        return None, None
-
-def plot_chart(data):
-    fig = go.Figure()
-    
-    fig.add_trace(go.Candlestick(x=data.index,
-                open=data['Open'],
-                high=data['High'],
-                low=data['Low'],
-                close=data['Close'],
-                name='Candlestick'))
-
-    fig.update_layout(title='BTC-USD Price Chart',
-                      xaxis_title='Date',
-                      yaxis_title='Price')
-    st.plotly_chart(fig, use_container_width=True)
-
-def main():
-    data = fetch_data(ticker)
-    
-    if data is None:
-        st.stop()
-    
+data = fetch_data(ticker)
+if data is not None:
     data = calculate_indicators(data)
     data = calculate_support_resistance(data)
     data = detect_doji(data)
-    data = calculate_atr(data)
 
     indicators = technical_indicators_summary(data)
     moving_averages = moving_averages_summary(data)
     
-    decision, entry_point, take_profit, stop_loss, position_size = generate_perpetual_options_decision(indicators, moving_averages, data, 10000)
+    st.write("Technical Indicators:")
+    st.write(indicators)
     
-    log_signals(generate_signals(indicators, moving_averages, data), decision, entry_point, take_profit, stop_loss)
+    st.write("Moving Averages:")
+    st.write(moving_averages)
     
-    fear_greed_value, fear_greed_classification = fetch_fear_greed_index()
-
-    st.write(f"Fear and Greed Index: {fear_greed_value} ({fear_greed_classification})")
-
-    plot_chart(data)
+    decision, take_profit, stop_loss = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
     
-    st.write(f"Decision: {decision}")
-    st.write(f"Entry Point: ${entry_point:.2f}")
-    st.write(f"Take Profit Level: ${take_profit:.2f}")
-    st.write(f"Stop Loss Level: ${stop_loss:.2f}")
-    st.write(f"Position Size: {position_size:.2f} units")
+    st.write("Trading Decision:")
+    st.write(decision)
+    st.write(f"Take Profit Level: {take_profit:.2f}")
+    st.write(f"Stop Loss Level: {stop_loss:.2f}")
 
-if __name__ == "__main__":
-    main()
+    # Plot the closing price and technical indicators
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Support'], mode='lines', name='Support', line=dict(color='green', dash='dash')))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], mode='lines', name='Resistance', line=dict(color='red', dash='dash')))
+    fig.update_layout(title='Bitcoin Price with Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
+    st.plotly_chart(fig)
+    
+    # Fetch and display Fear and Greed Index
+    fear_and_greed_index, classification = fetch_fear_and_greed_index()
+    st.write("Fear and Greed Index:")
+    st.write(f"{fear_and_greed_index} ({classification})")
