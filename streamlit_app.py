@@ -194,54 +194,74 @@ def generate_trading_decision(indicators, data):
     
     if len(buy_signals) > len(sell_signals):
         final_signal = 'Go Long'
-        take_profit = entry_point * 1.02  # Example take profit level: 2% above entry
-        stop_loss = entry_point * 0.98    # Example stop loss level: 2% below entry
+        take_profit = entry_point * 1.02  # Example take profit at 2% above entry
+        stop_loss = entry_point * 0.98    # Example stop loss at 2% below entry
     elif len(sell_signals) > len(buy_signals):
         final_signal = 'Go Short'
-        take_profit = entry_point * 0.98  # Example take profit level: 2% below entry
-        stop_loss = entry_point * 1.02    # Example stop loss level: 2% above entry
+        take_profit = entry_point * 0.98  # Example take profit at 2% below entry
+        stop_loss = entry_point * 1.02    # Example stop loss at 2% above entry
     else:
-        final_signal = 'Neutral'
+        final_signal = 'Hold'
     
-    return signals, final_signal, entry_point, take_profit, stop_loss
+    return final_signal, take_profit, stop_loss, signals
 
-# Main Streamlit app
-st.title('Bitcoin Options Trading Analysis')
+# Function to add Fear and Greed Index
+@st.cache_data(ttl=1800)
+def fetch_fear_and_greed_index():
+    try:
+        # Dummy data; replace with actual data source
+        index = np.random.randint(0, 100)
+        return index
+    except Exception as e:
+        st.error(f"Error fetching Fear and Greed Index: {e}")
+        return None
+
+# Streamlit app
+st.title('Bitcoin Technical Analysis and Trading Signals')
 
 data = fetch_data(ticker)
 if data is not None:
-    indicators = calculate_indicators(data)
-    indicators_summary = technical_indicators_summary(data)
-    signals, final_signal, entry_point, take_profit, stop_loss = generate_trading_decision(indicators_summary, data)
+    data = calculate_indicators(data)
+    indicators = technical_indicators_summary(data)
+    final_signal, take_profit, stop_loss, signals = generate_trading_decision(indicators, data)
     
-    st.write("### Technical Indicators")
-    st.write(pd.DataFrame(indicators_summary, index=[0]))
+    st.subheader('Technical Indicators Summary')
+    st.write(indicators)
     
-    st.write("### Trading Signals")
-    st.write(pd.DataFrame(signals, index=[0]))
+    st.subheader('Trading Decision')
+    st.write(f"Final Signal: {final_signal}")
+    st.write(f"Take Profit Level: {take_profit}")
+    st.write(f"Stop Loss Level: {stop_loss}")
     
-    st.write(f"### Final Trading Signal: **{final_signal}**")
-    st.write(f"### Entry Point: {entry_point:.2f}")
-    st.write(f"### Take Profit: {take_profit:.2f}")
-    st.write(f"### Stop Loss: {stop_loss:.2f}")
-
+    st.subheader('Signals')
+    st.write(signals)
+    
     # Plotting
     fig = go.Figure()
-    
-    fig.add_trace(go.Candlestick(x=data.index,
-                                 open=data['Open'],
-                                 high=data['High'],
-                                 low=data['Low'],
-                                 close=data['Close'],
-                                 name='Candlestick'))
-    
-    fig.add_trace(go.Scatter(x=data.index, y=data['SMA_20'], mode='lines', name='SMA 20'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
     fig.add_trace(go.Scatter(x=data.index, y=data['EMA_20'], mode='lines', name='EMA 20'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='red', dash='dash')))
-    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='red', dash='dash')))
-    
-    fig.update_layout(title='Bitcoin Price with Technical Indicators', xaxis_title='Date', yaxis_title='Price')
-    
+    fig.add_trace(go.Scatter(x=data.index, y=data['SMA_20'], mode='lines', name='SMA 20'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], mode='lines', name='BB Upper'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], mode='lines', name='BB Lower'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['VWAP'], mode='lines', name='VWAP'))
     st.plotly_chart(fig)
-else:
-    st.write("Unable to fetch data.")
+    
+    # Fear and Greed Index
+    fear_and_greed_index = fetch_fear_and_greed_index()
+    st.subheader('Fear and Greed Index')
+    st.write(f"Current Fear and Greed Index: {fear_and_greed_index}")
+
+    # Additional information and charts
+    st.subheader('Historical Data')
+    st.write(data.head())
+    
+    st.subheader('Technical Indicators Visualization')
+    fig_indicators = go.Figure()
+    fig_indicators.add_trace(go.Scatter(x=data.index, y=data['MACD'], mode='lines', name='MACD'))
+    fig_indicators.add_trace(go.Scatter(x=data.index, y=data['MACD_Signal'], mode='lines', name='MACD Signal'))
+    fig_indicators.add_trace(go.Scatter(x=data.index, y=data['RSI'], mode='lines', name='RSI'))
+    st.plotly_chart(fig_indicators)
+
+    # Display additional details for options trading
+    st.subheader('Options Trading Decision')
+    st.write("Considering perpetual options trading based on market conditions...")
