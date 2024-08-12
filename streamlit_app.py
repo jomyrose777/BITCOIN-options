@@ -204,6 +204,7 @@ def fetch_fear_and_greed_index():
     return latest_data['value'], latest_data['value_classification']
 
 # Function to generate a perpetual options decision
+# Function to generate a perpetual options decision
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
     signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
     
@@ -221,12 +222,13 @@ def generate_perpetual_options_decision(indicators, moving_averages, data, accou
     else:
         decision = 'Neutral'
     
-    take_profit_pct = 0.05 if decision == 'Go Long' else 0
-    stop_loss_pct = 0.03 if decision == 'Go Long' else 0
+    # Modified take profit and stop loss calculations
+    take_profit_pct = 0.02 if decision == 'Go Long' else -0.02
+    stop_loss_pct = -0.01 if decision == 'Go Long' else 0.01
     
     entry_point = data['Close'].iloc[-1]
     take_profit = entry_point * (1 + take_profit_pct)
-    stop_loss = entry_point * (1 - stop_loss_pct)
+    stop_loss = entry_point * (1 + stop_loss_pct)  # Note the change from subtraction to addition
     
     log_signals(signals, decision, entry_point, take_profit, stop_loss)
     
