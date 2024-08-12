@@ -307,7 +307,9 @@ if data is not None:
     st.write("Moving Averages:")
     st.write(moving_averages)
     
-    decision, entry_point, take_profit, stop_loss, accuracy = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
+    decision, entry_point, take_profit, stop_loss, _ = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
+    
+    accuracy = calculate_accuracy()  # Call the function here
     
     if decision == 'Error':
         st.error("Trading Decision could not be generated.")
@@ -318,16 +320,3 @@ if data is not None:
         st.write(f"Take Profit Level: {take_profit:.2f}")
         st.write(f"Stop Loss Level: {stop_loss:.2f}")
         st.write(f"Accuracy: {accuracy:.2f}%")
-
-        # Plot the closing price and technical indicators
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Support'], mode='lines', name='Support', line=dict(color='green', dash='dash')))
-        fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], mode='lines', name='Resistance', line=dict(color='red', dash='dash')))
-        fig.update_layout(title='Bitcoin Price with Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
-        st.plotly_chart(fig)
-    
-        # Fetch and display Fear and Greed Index
-        fear_and_greed_index, classification = fetch_fear_and_greed_index()
-        st.write("Fear and Greed Index:")
-        st.write(f"{fear_and_greed_index} ({classification})")
