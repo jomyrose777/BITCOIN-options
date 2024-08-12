@@ -234,61 +234,37 @@ def fetch_fear_and_greed_index():
 
 # Function to generate trading decision for perpetual options
 def generate_perpetual_options_decision(indicators, moving_averages, data, account_balance):
-    signals, weighted_score = generate_weighted_signals(indicators, moving_averages, data)
-    
-    if 'Error' in signals:
-        st.error("Error generating weighted signals.")
-        return 'Error', 0, 0, 0, 0
-    
-    buy_signals = [value for key, value in signals.items() if value == 'Buy']
-    sell_signals = [value for key, value in signals.items() if value == 'Sell']
-    
-    if len(buy_signals) > len(sell_signals):
+    # Combine multiple indicators to confirm the trading decision
+    if indicators['RSI'] < 30 and indicators['MACD'] > 0 and moving_averages['MA5'] > moving_averages['MA10']:
         decision = 'Go Long'
-        take_profit_pct = 0.02
-        stop_loss_pct = 0.01
-    elif len(sell_signals) > len(buy_signals):
+    elif indicators['RSI'] > 70 and indicators['MACD'] < 0 and moving_averages['MA5'] < moving_averages['MA10']:
         decision = 'Go Short'
-        take_profit_pct = -0.02
-        stop_loss_pct = 0.01
     else:
         decision = 'Neutral'
+
+    # Set risk management parameters
+    risk_percentage = 0.02  # Risk 2% of the account balance per trade
+    position_size = account_balance * risk_percentage
+
+    # Set Stop Loss and Take Profit levels based on market conditions
+    if decision == 'Go Long':
+        take_profit_pct = 0.05  # Take profit at 5% above the entry point
+        stop_loss_pct = 0.03  # Stop loss at 3% below the entry point
+    elif decision == 'Go Short':
+        take_profit_pct = 0.05  # Take profit at 5% below the entry point
+        stop_loss_pct = 0.03  # Stop loss at 3% above the entry point
+    else:
         take_profit_pct = 0
         stop_loss_pct = 0
-    
+
     entry_point = data['Close'].iloc[-1]
-    take_profit_level = entry_point * (1 + take_profit_pct)
-    stop_loss_level = entry_point * (1 - stop_loss_pct)  # Corrected calculation for stop loss
+    take_profit = entry_point * (1 + take_profit_pct)
+    stop_loss = entry_point * (1 - stop_loss_pct)
 
-    # Log the signals with the calculated values
-    log_signals(signals, decision, entry_point, take_profit_level, stop_loss_level)
-    
-    # Calculate accuracy of signals
-    def calculate_accuracy():
-    log_file = 'signals_log.csv'
-    try:
-        logs = pd.read_csv(log_file)
-    except FileNotFoundError:
-        return 0.0
+    # Log the trading decision and risk management parameters
+    log_signals(indicators, decision, entry_point, take_profit, stop_loss)
 
-    correct_signals = 0
-    total_signals = len(logs)
-    
-    if total_signals == 0:
-        return 0.0
-
-    for index, row in logs.iterrows():
-        # Check if the decision was correct based on historical data
-        if row['Decision'] == 'Go Long' and row['Take Profit'] > row['Entry Point']:
-            correct_signals += 1
-        elif row['Decision'] == 'Go Short' and row['Stop Loss'] < row['Entry Point']:
-            correct_signals += 1
-    
-    accuracy = correct_signals / total_signals * 100
-    st.write("Accuracy Log:", accuracy)
-    return accuracy
-
-
+    return decision, entry_point, take_profit, stop_loss
 # Main app logic
 st.title("Bitcoin Trading Signals")
 
@@ -307,9 +283,7 @@ if data is not None:
     st.write("Moving Averages:")
     st.write(moving_averages)
     
-    decision, entry_point, take_profit, stop_loss, _ = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
-    
-    accuracy = calculate_accuracy()  # Call the function here
+    decision, entry_point, take_profit, stop_loss, accuracy = generate_perpetual_options_decision(indicators, moving_averages, data, account_balance=1000)
     
     if decision == 'Error':
         st.error("Trading Decision could not be generated.")
@@ -320,3 +294,16 @@ if data is not None:
         st.write(f"Take Profit Level: {take_profit:.2f}")
         st.write(f"Stop Loss Level: {stop_loss:.2f}")
         st.write(f"Accuracy: {accuracy:.2f}%")
+
+        # Plot the closing price and technical indicators
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
+        fig.add_trace(go.Scatter(x=data.index, y=data['Support'], mode='lines', name='Support', line=dict(color='green', dash='dash')))
+        fig.add_trace(go.Scatter(x=data.index, y=data['Resistance'], mode='lines', name='Resistance', line=dict(color='red', dash='dash')))
+        fig.update_layout(title='Bitcoin Price with Support and Resistance Levels', xaxis_title='Time', yaxis_title='Price')
+        st.plotly_chart(fig)
+    
+        # Fetch and display Fear and Greed Index
+        fear_and_greed_index, classification = fetch_fear_and_greed_index()
+        st.write("Fear and Greed Index:")
+        st.write(f"{fear_and_greed_index} ({classification})")
