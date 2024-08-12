@@ -180,83 +180,51 @@ def suggest_trade_action(data: pd.DataFrame, indicators: Dict[str, float]) -> Di
     
     # Example values - you can calculate these based on data
     stop_loss = latest_price * 1.02  # Stop-loss 2% above the current price for short
-    take_profit = latest_price * 0.95  # Take-profit 5% below the current price for short
-
-    # Adjust based on your strategy
-    if indicators['MACD'] == 'Sell':
-        action = 'Go Short'
-    elif indicators['MACD'] == 'Buy':
-        action = 'Go Long'
-        stop_loss = latest_price * 0.98  # Stop-loss 2% below the current price for long
-        take_profit = latest_price * 1.05  # Take-profit 5% above the current price for long
-    else:
-        action = 'Hold'
-
+    take_profit = latest_price * 0.98  # Take-profit 2% below the current price for short
+    
     return {
-        'Action': action,
-        'Stop-Loss': stop_loss,
-        'Take-Profit': take_profit
+        'entry': latest_price,
+        'stop_loss': stop_loss,
+        'take_profit': take_profit
     }
 
-# Main function to run the Streamlit app
-# Main function to run the Streamlit app
+# Main function to execute the trading strategy
 def main():
-    # Fetch data
+    st.title('Bitcoin Trading Analysis')
+    
     data = fetch_data(ticker)
+    
+    if data.empty:
+        st.write("No data to analyze.")
+        return
 
-    # Calculate indicators
-    if len(data) >= 14:
-        indicators = calculate_indicators(data)
-    else:
-        indicators = {}
+    indicators = calculate_indicators(data)
+    signals = generate_signals(indicators, {})  # Provide moving_averages if needed
 
-    # Detect Doji candlestick patterns
-    data = detect_doji(data)
-
-    # Calculate support and resistance levels
-    data = calculate_support_resistance(data)
-
-    # Suggest trade action
-    if 'MACD' in indicators:
-        if indicators['MACD'] == 'Sell':
-            action = 'Go Short'
-        elif indicators['MACD'] == 'Buy':
-            action = 'Go Long'
-            stop_loss = latest_price * 0.98  # Stop-loss 2% below the current price for long
-            take_profit = latest_price * 1.05  # Take-profit 5% above the current price for long
-        else:
-            action = 'Hold'
-    else:
-        action = 'Hold'
-        stop_loss = None
-        take_profit = None
-
-    # Fetch Fear and Greed Index
-    fear_and_greed_index, fear_and_greed_classification = fetch_fear_and_greed_index()
-
-    # Calculate signal accuracy
-    signal_accuracy = calculate_signal_accuracy(indicators)
-
-    # Create Streamlit app
-    st.title('Crypto Trading Bot')
-    st.write('### Current Data')
-    st.write(data.tail(10))
-    st.write('### Indicators')
-    st.write(indicators)
-    st.write('### Signals')
-    st.write({'Action': action, 'Stop-Loss': stop_loss, 'Take-Profit': take_profit})
-    st.write('### Fear and Greed Index')
-    st.write(f'Value: {fear_and_greed_index}, Classification: {fear_and_greed_classification}')
-    st.write('### Signal Accuracy')
-    st.write(f'{signal_accuracy*100}%')
-
-    # Plot data
-    fig = go.Figure(data=[go.Candlestick(x=data.index,
-                                         open=data['Open'],
-                                         high=data['High'],
-                                         low=data['Low'],
-                                         close=data['Close'])])
+    st.write("Indicators:")
+    st.write(indicators.tail())
+    
+    st.write("Signals:")
+    st.write(signals)
+    
+    # Plotting the price and indicators
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close'))
+    fig.update_layout(title='BTC-USD Price Chart', xaxis_title='Date', yaxis_title='Price')
     st.plotly_chart(fig)
+    
+    # Fetch Fear and Greed Index
+    fng_value, fng_classification = fetch_fear_and_greed_index()
+    st.write(f"Fear and Greed Index: {fng_value} ({fng_classification})")
+    
+    # Suggest trade action
+    trade_action = suggest_trade_action(data, indicators)
+    st.write("Suggested Trade Action:")
+    st.write(trade_action)
+    
+    # Display backtesting results and accuracy metrics
+    accuracy = calculate_signal_accuracy(signals)
+    st.write(f"Signal Accuracy: {accuracy * 100:.2f}%")
 
 if __name__ == '__main__':
     main()
