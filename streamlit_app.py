@@ -221,13 +221,13 @@ def main():
         
         # Add a refresh button
         if st.button('Refresh'):
-            st.experimental_rerun()
+      
     
     # Add periodic auto-refresh
     def auto_refresh():
         while True:
             time.sleep(30)
-            st.experimental_rerun()
+     
 
     if st.session_state.get('refresh_thread') is None:
         st.session_state['refresh_thread'] = threading.Thread(target=auto_refresh, daemon=True)
