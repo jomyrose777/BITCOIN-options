@@ -166,12 +166,22 @@ def generate_perpetual_options_decision(indicators, moving_averages, data):
     
     if len(buy_signals) > len(sell_signals):
         decision = 'Go Long'
+        take_profit_pct = 0.02
+        stop_loss_pct = 0.01
     elif len(sell_signals) > len(buy_signals):
         decision = 'Go Short'
+        take_profit_pct = -0.02  # Note the negative sign
+        stop_loss_pct = 0.01
     else:
         decision = 'Neutral'
-    
-    return decision, data['Close'].iloc[-1]
+        take_profit_pct = 0
+        stop_loss_pct = 0
+
+    entry_point = data['Close'].iloc[-1]
+    take_profit_level = entry_point * (1 + take_profit_pct)
+    stop_loss_level = entry_point * (1 + stop_loss_pct)
+
+    return decision, entry_point, take_profit_level, stop_loss_level
 
 # Function to calculate signal accuracy
 def calculate_signal_accuracy(logs, signals):
