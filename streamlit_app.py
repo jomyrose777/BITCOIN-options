@@ -38,7 +38,6 @@ def fetch_data(ticker):
         st.error(f"Error fetching data: {e}")
         return None
 
-# Function to calculate technical indicators
 def calculate_indicators(data):
     # Moving Averages
     data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
@@ -67,10 +66,14 @@ def calculate_indicators(data):
     data['Fib_0.382'] = data['Close'].rolling(window=50).max() * 0.382
     data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
     
-    # Williams %R (alternative to Intraday Momentum Index)
-    williams_r = ta.momentum.WilliamsRIndicator(high=data['High'], low=data['Low'], close=data['Close'], window=14)
-    data['Williams %R'] = williams_r.williams_r()
-    
+    # Williams %R
+    try:
+        williams_r = ta.momentum.WilliamsRIndicator(high=data['High'], low=data['Low'], close=data['Close'], window=14)
+        data['Williams %R'] = williams_r.williams_r()
+    except Exception as e:
+        st.error(f"Error calculating Williams %R: {e}")
+        data['Williams %R'] = np.nan  # Assign NaN if there's an error
+
     # Money Flow Index (MFI)
     mfi = ta.volume.MFIIndicator(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'], window=14)
     data['MFI'] = mfi.money_flow_index()
@@ -105,6 +108,7 @@ def calculate_indicators(data):
 
     data.dropna(inplace=True)
     return data
+
 
 # Function to calculate summary of indicators
 def technical_indicators_summary(data):
