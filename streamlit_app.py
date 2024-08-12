@@ -23,9 +23,13 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
 
 # Fetch live data from Yahoo Finance
 def fetch_data(ticker: str) -> pd.DataFrame:
-    """Fetch historical data from Yahoo Finance."""
+    """Fetch current market price and last 30 minutes of data."""
     try:
-        data = yf.download(ticker, period='3d', interval='30m')
+        ticker_obj = yf.Ticker(ticker)
+        current_price = ticker_obj.info['regularMarketPrice']
+        print(f"Current Price: {current_price}")
+        
+        data = yf.download(ticker, period='30m', interval='1m')
         print(f"Fetched data: {data.shape}")  # Print data shape
         data.reset_index(inplace=True)  # Reset index
         data['Date'] = pd.to_datetime(data['Date'])  # Convert to datetime
@@ -36,7 +40,7 @@ def fetch_data(ticker: str) -> pd.DataFrame:
     except Exception as e:
         print(f"Error fetching data: {e}")  # Print error message
         return pd.DataFrame()
-
+        
 # Calculate technical indicators using the ta library
 def calculate_indicators(data: pd.DataFrame) -> pd.DataFrame:
     """Calculate technical indicators."""
