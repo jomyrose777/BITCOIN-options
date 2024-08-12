@@ -68,34 +68,40 @@ def calculate_indicators(data):
     data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
     
     # Williams %R (alternative to Intraday Momentum Index)
-    data['Williams %R'] = ta.momentum.WilliamsRIndicator(data['High'], data['Low'], data['Close'], window=14).williams_r()
+    williams_r = ta.momentum.WilliamsRIndicator(high=data['High'], low=data['Low'], close=data['Close'], window=14)
+    data['Williams %R'] = williams_r.williams_r()
     
     # Money Flow Index (MFI)
-    data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
+    mfi = ta.volume.MFIIndicator(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'], window=14)
+    data['MFI'] = mfi.money_flow_index()
 
     # Stochastic Oscillator
-    stoch = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close'], window=14, smooth_window=3)
+    stoch = ta.momentum.StochasticOscillator(high=data['High'], low=data['Low'], close=data['Close'], window=14, smooth_window=3)
     data['Stoch_K'] = stoch.stoch()
     data['Stoch_D'] = stoch.stoch_signal()
 
     # Average True Range (ATR)
-    data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close'], window=14).average_true_range()
+    atr = ta.volatility.AverageTrueRange(high=data['High'], low=data['Low'], close=data['Close'], window=14)
+    data['ATR'] = atr.average_true_range()
 
     # Ichimoku Cloud
-    ichimoku = ta.trend.IchimokuIndicator(data['High'], data['Low'], window1=9, window2=26, window3=52)
+    ichimoku = ta.trend.IchimokuIndicator(high=data['High'], low=data['Low'], window1=9, window2=26, window3=52)
     data['Ichimoku_A'] = ichimoku.ichimoku_a()
     data['Ichimoku_B'] = ichimoku.ichimoku_b()
     data['Ichimoku_Base'] = ichimoku.ichimoku_base_line()
     data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
 
     # Parabolic SAR
-    data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low'], data['Close'], acceleration=0.02, max_acceleration=0.2).psar()
+    sar = ta.trend.PSARIndicator(high=data['High'], low=data['Low'], close=data['Close'], acceleration=0.02, max_acceleration=0.2)
+    data['SAR'] = sar.psar()
 
     # VWAP
-    data['VWAP'] = ta.volume.VolumeWeightedAveragePrice(data['High'], data['Low'], data['Close'], data['Volume']).volume_weighted_average_price()
+    vwap = ta.volume.VolumeWeightedAveragePrice(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'])
+    data['VWAP'] = vwap.volume_weighted_average_price()
 
     # Chaikin Money Flow (CMF)
-    data['CMF'] = ta.volume.ChaikinMoneyFlowIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=20).chaikin_money_flow()
+    cmf = ta.volume.ChaikinMoneyFlowIndicator(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'], window=20)
+    data['CMF'] = cmf.chaikin_money_flow()
 
     data.dropna(inplace=True)
     return data
@@ -188,10 +194,10 @@ def generate_trading_decision(indicators, data):
     else:
         signals['CMF'] = 'Sell'
     
-    # Combine signals to make final decision
-    buy_signals = [value for value in signals.values() if value == 'Buy']
-    sell_signals = [value for value in signals.values() if value == 'Sell']
-    
+    # Determine final trading signal
+    buy_signals = [k for k, v in signals.items() if v == 'Buy']
+    sell_signals = [k for k, v in signals.items() if v == 'Sell']
+
     if len(buy_signals) > len(sell_signals):
         final_signal = 'Go Long'
         take_profit = entry_point * 1.05
