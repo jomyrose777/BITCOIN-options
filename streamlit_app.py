@@ -193,7 +193,7 @@ def main():
         indicators = technical_indicators_summary(data)
         moving_averages = moving_averages_summary(data)
         
-        st.write("Technical Indicators:")
+                st.write("Technical Indicators:")
         st.write(indicators)
         
         st.write("Moving Averages:")
@@ -221,17 +221,17 @@ def main():
         
         # Add a refresh button
         if st.button('Refresh'):
-      
-    
-    # Add periodic auto-refresh
-    def auto_refresh():
-        while True:
-            time.sleep(30)
-     
+            st.experimental_rerun()
 
-    if st.session_state.get('refresh_thread') is None:
-        st.session_state['refresh_thread'] = threading.Thread(target=auto_refresh, daemon=True)
-        st.session_state['refresh_thread'].start()
+# Add periodic auto-refresh
+def auto_refresh():
+    while True:
+        time.sleep(30)
+        st.experimental_rerun()
+
+if st.session_state.get('refresh_thread') is None:
+    st.session_state['refresh_thread'] = threading.Thread(target=auto_refresh, daemon=True)
+    st.session_state['refresh_thread'].start()
 
 if __name__ == "__main__":
     main()
