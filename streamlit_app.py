@@ -23,17 +23,14 @@ def to_est(timestamp: pd.Timestamp) -> pd.Timestamp:
 
 # Fetch live data from Yahoo Finance
 def fetch_data(ticker: str) -> pd.DataFrame:
-    """Fetch historical data from Yahoo Finance."""
     try:
         data = yf.download(ticker, period='3d', interval='30m')
-        data.reset_index(inplace=True)  # Reset index
-        data['Date'] = pd.to_datetime(data['Date'])  # Convert to datetime
-        data.set_index('Date', inplace=True)  # Set index
-        data.index = data.index.tz_localize('UTC')  # Set timezone to UTC
-        data.index = data.index.tz_convert(est)  # Convert to EST
+        print(f"Fetched data: {data.shape}")  # Print data shape
+        data.index = data.index.tz_localize('UTC')
+        data.index = data.index.tz_convert(est)
         return data
     except Exception as e:
-        st.error(f"Error fetching data: {e}")
+        print(f"Error fetching data: {e}")  # Print error message
         return pd.DataFrame()
 
 # Calculate technical indicators using the ta library
