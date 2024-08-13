@@ -39,6 +39,11 @@ def fetch_data(ticker):
         return None
 
 def calculate_indicators(data):
+    # Check if data is sufficient for calculations
+    if len(data) < 14:
+        st.error("Insufficient data to calculate indicators.")
+        return data
+
     # Moving Averages
     data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
     data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
@@ -84,8 +89,15 @@ def calculate_indicators(data):
     data['Stoch_D'] = stoch.stoch_signal()
 
     # Average True Range (ATR)
-    atr = ta.volatility.AverageTrueRange(high=data['High'], low=data['Low'], close=data['Close'], window=14)
-    data['ATR'] = atr.average_true_range()
+    if len(data) >= 14:
+        try:
+            atr = ta.volatility.AverageTrueRange(high=data['High'], low=data['Low'], close=data['Close'], window=14)
+            data['ATR'] = atr.average_true_range()
+        except Exception as e:
+            st.error(f"Error calculating ATR: {e}")
+            data['ATR'] = np.nan  # Assign NaN if there's an error
+    else:
+        data['ATR'] = np.nan  # Not enough data to calculate ATR
 
     # Ichimoku Cloud
     ichimoku = ta.trend.IchimokuIndicator(high=data['High'], low=data['Low'], window1=9, window2=26, window3=52)
