@@ -41,15 +41,15 @@ def fetch_data(ticker):
 
 # Function to calculate technical indicators
 def calculate_indicators(data):
-# Moving Averages
-data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
-data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
+    # Moving Averages
+    data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
+    data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
 
-# Bollinger Bands
-bb = ta.volatility.BollingerBands(data['Close'])
-data['BB_Middle'] = bb.bollinger_mavg()
-data['BB_Upper'] = bb.bollinger_hband()
-data['BB_Lower'] = bb.bollinger_lband()
+    # Bollinger Bands
+    bb = ta.volatility.BollingerBands(data['Close'])
+    data['BB_Middle'] = bb.bollinger_mavg()
+    data['BB_Upper'] = bb.bollinger_hband()
+    data['BB_Lower'] = bb.bollinger_lband()
 
 # MACD
 macd = ta.trend.MACD(data['Close'])
