@@ -144,12 +144,12 @@ def generate_trading_decision(indicators, data):
     else:
         signals['RSI'] = 'Neutral'
 
-if indicators['MACD'] > 0:
-signals['MACD'] = 'Buy'
-elif indicators['MACD'] < 0:
-signals['MACD'] = 'Sell'
-else:
-signals['MACD'] = 'Neutral'
+    if indicators['MACD'] > 0:
+        signals['MACD'] = 'Buy'
+    elif indicators['MACD'] < 0:
+        signals['MACD'] = 'Sell'
+    else:
+        signals['MACD'] = 'Neutral'
 
 # Example: Use Bollinger Bands to determine breakout signals
 if entry_point > indicators['BB_Upper']:
