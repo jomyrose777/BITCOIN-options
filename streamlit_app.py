@@ -131,10 +131,10 @@ def technical_indicators_summary(data):
 
 # Function to generate trading signals and calculate entry, take profit, and stop loss
 def generate_trading_decision(indicators, data):
-signals = {}
-entry_point = data['Close'].iloc[-1]
-take_profit = None
-stop_loss = None
+    signals = {}
+    entry_point = data['Close'].iloc[-1]
+    take_profit = None
+    stop_loss = None
 
 # Example logic for signal generation
 if indicators['RSI'] < 30:
