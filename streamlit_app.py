@@ -175,19 +175,19 @@ def generate_trading_decision(indicators, data):
         signals['MFI'] = 'Neutral'
     
     if indicators['Stoch_K'] < indicators['Stoch_D']:
-    signals['Stochastic'] = 'Sell'
-else:
-    signals['Stochastic'] = 'Buy'
-
-if entry_point < indicators['VWAP']:
-    signals['VWAP'] = 'Sell'
-else:
-    signals['VWAP'] = 'Buy'
-
-if indicators['CMF'] > 0:
-    signals['CMF'] = 'Buy'
-else:
-    signals['CMF'] = 'Sell'
+        signals['Stochastic'] = 'Sell'
+    else:
+        signals['Stochastic'] = 'Buy'
+    
+    if entry_point < indicators['VWAP']:
+        signals['VWAP'] = 'Sell'
+    else:
+        signals['VWAP'] = 'Buy'
+    
+    if indicators['CMF'] > 0:
+        signals['CMF'] = 'Buy'
+    else:
+        signals['CMF'] = 'Sell'
 
 # Combine signals to make final decision
 buy_signals = [value for value in signals.values() if value == 'Buy']
