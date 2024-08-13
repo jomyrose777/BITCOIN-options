@@ -13,11 +13,10 @@ ticker = 'BTC-USD'
 # Define the timezone for EST
 est = pytz.timezone('America/New_York')
 
-# Function to convert datetime to EST
 def to_est(dt):
-if dt.tzinfo is None:
-dt = est.localize(dt)
-return dt.astimezone(est)
+    if dt.tzinfo is None:
+        dt = est.localize(dt)
+    return dt.astimezone(est)
 
 # Function to fetch live data from Yahoo Finance
 @st.cache_data(ttl=30)
