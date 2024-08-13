@@ -159,14 +159,13 @@ def generate_trading_decision(indicators, data):
     else:
         signals['BB'] = 'Neutral'
 
-
     # Example logic for additional indicators
     if indicators['IMI'] < 30:
-    signals['IMI'] = 'Buy'
+        signals['IMI'] = 'Buy'
     elif indicators['IMI'] > 70:
-    signals['IMI'] = 'Sell'
+        signals['IMI'] = 'Sell'
     else:
-    signals['IMI'] = 'Neutral'
+        signals['IMI'] = 'Neutral'
     
     if indicators['MFI'] < 20:
     signals['MFI'] = 'Buy'
