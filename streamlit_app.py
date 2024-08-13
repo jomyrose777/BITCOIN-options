@@ -70,9 +70,16 @@ def calculate_indicators(data):
     
     # Intraday Momentum Index (IMI)
     try:
-        data['IMI'] = ta.momentum.IntradayMomentumIndex(data['Close'], data['High'], data['Low'], window=14).intraday_momentum_index()
+        from ta.momentum import RSIIndicator
+        data['RSI'] = RSIIndicator(data['Close']).rsi()
     except Exception as e:
-        st.error(f"Error calculating IMI: {e}")
+        st.error(f"Error calculating RSI: {e}")
+    
+    try:
+        from ta.trend import PSARIndicator
+        data['SAR'] = PSARIndicator(data['High'], data['Low'], acceleration=0.02, max_acceleration=0.2).psar()
+    except Exception as e:
+        st.error(f"Error calculating SAR: {e}")
     
     # Money Flow Index (MFI)
     data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
@@ -92,8 +99,6 @@ def calculate_indicators(data):
     data['Ichimoku_Base'] = ichimoku.ichimoku_base_line()
     data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
     
-    # Parabolic SAR
-    data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low'], data['Close'], acceleration=0.02, max_acceleration=0.2).psar()
     
     # VWAP
     data['VWAP'] = ta.volume.VolumeWeightedAveragePrice(data['High'], data['Low'], data['Close'], data['Volume']).volume_weighted_average_price()
