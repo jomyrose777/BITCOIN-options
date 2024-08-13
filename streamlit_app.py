@@ -51,55 +51,55 @@ def calculate_indicators(data):
     data['BB_Upper'] = bb.bollinger_hband()
     data['BB_Lower'] = bb.bollinger_lband()
 
-# MACD
-macd = ta.trend.MACD(data['Close'])
-data['MACD'] = macd.macd()
-data['MACD_Signal'] = macd.macd_signal()
-data['MACD_Hist'] = macd.macd_diff()
-
-# OBV
-data['OBV'] = ta.volume.OnBalanceVolumeIndicator(data['Close'], data['Volume']).on_balance_volume()
-
-# RSI
-data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
-
-# Fibonacci Retracement (dummy levels for illustration)
-data['Fib_0.236'] = data['Close'].rolling(window=50).max() * 0.236
-data['Fib_0.382'] = data['Close'].rolling(window=50).max() * 0.382
-data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
-
-# Intraday Momentum Index (IMI)
-data['IMI'] = ta.momentum.IntradayMomentumIndex(data['Close'], data['High'], data['Low'], window=14).intraday_momentum_index()
-
-# Money Flow Index (MFI)
-data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
-
-# Stochastic Oscillator
-stoch = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close'], window=14, smooth_window=3)
-data['Stoch_K'] = stoch.stoch()
-data['Stoch_D'] = stoch.stoch_signal()
-
-# Average True Range (ATR)
-data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close'], window=14).average_true_range()
-
-# Ichimoku Cloud
-ichimoku = ta.trend.IchimokuIndicator(data['High'], data['Low'], window1=9, window2=26, window3=52)
-data['Ichimoku_A'] = ichimoku.ichimoku_a()
-data['Ichimoku_B'] = ichimoku.ichimoku_b()
-data['Ichimoku_Base'] = ichimoku.ichimoku_base_line()
-data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
-
-# Parabolic SAR
-data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low'], data['Close'], acceleration=0.02, max_acceleration=0.2).psar()
-
-# VWAP
-data['VWAP'] = ta.volume.VolumeWeightedAveragePrice(data['High'], data['Low'], data['Close'], data['Volume']).volume_weighted_average_price()
-
-# Chaikin Money Flow (CMF)
-data['CMF'] = ta.volume.ChaikinMoneyFlowIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=20).chaikin_money_flow()
-
-data.dropna(inplace=True)
-return data
+    # MACD
+    macd = ta.trend.MACD(data['Close'])
+    data['MACD'] = macd.macd()
+    data['MACD_Signal'] = macd.macd_signal()
+    data['MACD_Hist'] = macd.macd_diff()
+    
+    # OBV
+    data['OBV'] = ta.volume.OnBalanceVolumeIndicator(data['Close'], data['Volume']).on_balance_volume()
+    
+    # RSI
+    data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
+    
+    # Fibonacci Retracement (dummy levels for illustration)
+    data['Fib_0.236'] = data['Close'].rolling(window=50).max() * 0.236
+    data['Fib_0.382'] = data['Close'].rolling(window=50).max() * 0.382
+    data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
+    
+    # Intraday Momentum Index (IMI)
+    data['IMI'] = ta.momentum.IntradayMomentumIndex(data['Close'], data['High'], data['Low'], window=14).intraday_momentum_index()
+    
+    # Money Flow Index (MFI)
+    data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
+    
+    # Stochastic Oscillator
+    stoch = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close'], window=14, smooth_window=3)
+    data['Stoch_K'] = stoch.stoch()
+    data['Stoch_D'] = stoch.stoch_signal()
+    
+    # Average True Range (ATR)
+    data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close'], window=14).average_true_range()
+    
+    # Ichimoku Cloud
+    ichimoku = ta.trend.IchimokuIndicator(data['High'], data['Low'], window1=9, window2=26, window3=52)
+    data['Ichimoku_A'] = ichimoku.ichimoku_a()
+    data['Ichimoku_B'] = ichimoku.ichimoku_b()
+    data['Ichimoku_Base'] = ichimoku.ichimoku_base_line()
+    data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
+    
+    # Parabolic SAR
+    data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low'], data['Close'], acceleration=0.02, max_acceleration=0.2).psar()
+    
+    # VWAP
+    data['VWAP'] = ta.volume.VolumeWeightedAveragePrice(data['High'], data['Low'], data['Close'], data['Volume']).volume_weighted_average_price()
+    
+    # Chaikin Money Flow (CMF)
+    data['CMF'] = ta.volume.ChaikinMoneyFlowIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=20).chaikin_money_flow()
+    
+    data.dropna(inplace=True)
+    return data
 
 # Function to calculate summary of indicators
 def technical_indicators_summary(data):
@@ -189,32 +189,32 @@ def generate_trading_decision(indicators, data):
     else:
         signals['CMF'] = 'Sell'
 
-# Combine signals to make final decision
-buy_signals = [value for value in signals.values() if value == 'Buy']
-sell_signals = [value for value in signals.values() if value == 'Sell']
-
-if len(buy_signals) > len(sell_signals):
-    final_signal = 'Go Long'
-    take_profit = entry_point * 1.02  # Example take profit at 2% above entry
-    stop_loss = entry_point * 0.98  # Example stop loss at 2% below entry
-elif len(sell_signals) > len(buy_signals):
-    final_signal = 'Go Short'
-    take_profit = entry_point * 0.98  # Example take profit at 2% below entry
-    stop_loss = entry_point * 1.02  # Example stop loss at 2% above entry
-else:
-    final_signal = 'Hold'
-
-return final_signal, take_profit, stop_loss, signals
-
-# Function to add Fear and Greed Index
-@st.cache_data(ttl=1800)
-def fetch_fear_and_greed_index():
-    try:
-        # Dummy data; replace with actual data source
-        index = np.random.randint(0, 100)
-        return index
-    except Exception as e:
-        st.error(f"Error fetching Fear and Greed Index: {e}")
+    # Combine signals to make final decision
+    buy_signals = [value for value in signals.values() if value == 'Buy']
+    sell_signals = [value for value in signals.values() if value == 'Sell']
+    
+    if len(buy_signals) > len(sell_signals):
+        final_signal = 'Go Long'
+        take_profit = entry_point * 1.02  # Example take profit at 2% above entry
+        stop_loss = entry_point * 0.98  # Example stop loss at 2% below entry
+    elif len(sell_signals) > len(buy_signals):
+        final_signal = 'Go Short'
+        take_profit = entry_point * 0.98  # Example take profit at 2% below entry
+        stop_loss = entry_point * 1.02  # Example stop loss at 2% above entry
+    else:
+        final_signal = 'Hold'
+    
+    return final_signal, take_profit, stop_loss, signals
+    
+    # Function to add Fear and Greed Index
+    @st.cache_data(ttl=1800)
+    def fetch_fear_and_greed_index():
+        try:
+            # Dummy data; replace with actual data source
+            index = np.random.randint(0, 100)
+            return index
+        except Exception as e:
+            st.error(f"Error fetching Fear and Greed Index: {e}")
         return None
 
 # Streamlit app
