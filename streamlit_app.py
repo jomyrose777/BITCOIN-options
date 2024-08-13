@@ -20,7 +20,7 @@ def to_est(dt):
     else:
         return dt.astimezone(est)
 
-#Function to fetch live data from Yahoo Finance
+# Function to fetch live data from Yahoo Finance
 @st.cache_data(ttl=30)
 def fetch_data(ticker):
     try:
@@ -68,18 +68,8 @@ def calculate_indicators(data):
     data['Fib_0.382'] = data['Close'].rolling(window=50).max() * 0.382
     data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
     
-    # Intraday Momentum Index (IMI)
-    try:
-        from ta.momentum import RSIIndicator
-        data['RSI'] = RSIIndicator(data['Close']).rsi()
-    except Exception as e:
-        st.error(f"Error calculating RSI: {e}")
-    
-    try:
-        from ta.trend import PSARIndicator
-        data['SAR'] = PSARIndicator(data['High'], data['Low'], acceleration=0.02, max_acceleration=0.2).psar()
-    except Exception as e:
-        st.error(f"Error calculating SAR: {e}")
+    # Parabolic SAR
+    data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low']).psar()
     
     # Money Flow Index (MFI)
     data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
@@ -99,42 +89,44 @@ def calculate_indicators(data):
     data['Ichimoku_Base'] = ichimoku.ichimoku_base_line()
     data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
     
-    
     # VWAP
     data['VWAP'] = ta.volume.VolumeWeightedAveragePrice(data['High'], data['Low'], data['Close'], data['Volume']).volume_weighted_average_price()
     
     # Chaikin Money Flow (CMF)
-    data['CMF'] = ta.volume.ChaikinMoneyFlowIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=20).chaikin_money_flow()
+    data['CMF'] = ta.volume.ChaikinMoneyFlowIndicator(data['High'], data['Low'], data['Close'], data['Volume']).chaikin_money_flow()
     
     data.dropna(inplace=True)
     return data
 
 # Function to calculate summary of indicators
 def technical_indicators_summary(data):
-    indicators = {
-        'RSI': data['RSI'].iloc[-1],
-        'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
-        'BB_Upper': data['BB_Upper'].iloc[-1],
-        'BB_Lower': data['BB_Lower'].iloc[-1],
-        'SMA_20': data['SMA_20'].iloc[-1],
-        'EMA_20': data['EMA_20'].iloc[-1],
-        'OBV': data['OBV'].iloc[-1],
-        'Fib_0.236': data['Fib_0.236'].iloc[-1],
-        'Fib_0.382': data['Fib_0.382'].iloc[-1],
-        'Fib_0.618': data['Fib_0.618'].iloc[-1],
-        'IMI': data['IMI'].iloc[-1],
-        'MFI': data['MFI'].iloc[-1],
-        'Stoch_K': data['Stoch_K'].iloc[-1],
-        'Stoch_D': data['Stoch_D'].iloc[-1],
-        'ATR': data['ATR'].iloc[-1],
-        'Ichimoku_A': data['Ichimoku_A'].iloc[-1],
-        'Ichimoku_B': data['Ichimoku_B'].iloc[-1],
-        'Ichimoku_Base': data['Ichimoku_Base'].iloc[-1],
-        'Ichimoku_Lead': data['Ichimoku_Lead'].iloc[-1],
-        'SAR': data['SAR'].iloc[-1],
-        'VWAP': data['VWAP'].iloc[-1],
-        'CMF': data['CMF'].iloc[-1]
-    }
+    indicators = {}
+    try:
+        indicators = {
+            'RSI': data['RSI'].iloc[-1],
+            'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
+            'BB_Upper': data['BB_Upper'].iloc[-1],
+            'BB_Lower': data['BB_Lower'].iloc[-1],
+            'SMA_20': data['SMA_20'].iloc[-1],
+            'EMA_20': data['EMA_20'].iloc[-1],
+            'OBV': data['OBV'].iloc[-1],
+            'Fib_0.236': data['Fib_0.236'].iloc[-1],
+            'Fib_0.382': data['Fib_0.382'].iloc[-1],
+            'Fib_0.618': data['Fib_0.618'].iloc[-1],
+            'MFI': data['MFI'].iloc[-1],
+            'Stoch_K': data['Stoch_K'].iloc[-1],
+            'Stoch_D': data['Stoch_D'].iloc[-1],
+            'ATR': data['ATR'].iloc[-1],
+            'Ichimoku_A': data['Ichimoku_A'].iloc[-1],
+            'Ichimoku_B': data['Ichimoku_B'].iloc[-1],
+            'Ichimoku_Base': data['Ichimoku_Base'].iloc[-1],
+            'Ichimoku_Lead': data['Ichimoku_Lead'].iloc[-1],
+            'SAR': data['SAR'].iloc[-1],
+            'VWAP': data['VWAP'].iloc[-1],
+            'CMF': data['CMF'].iloc[-1]
+        }
+    except IndexError as e:
+        st.error(f"Error accessing indicator data: {e}")
     return indicators
 
 # Function to generate trading signals and calculate entry, take profit, and stop loss
@@ -168,13 +160,6 @@ def generate_trading_decision(indicators, data):
         signals['BB'] = 'Neutral'
 
     # Example logic for additional indicators
-    if indicators['IMI'] < 30:
-        signals['IMI'] = 'Buy'
-    elif indicators['IMI'] > 70:
-        signals['IMI'] = 'Sell'
-    else:
-        signals['IMI'] = 'Neutral'
-
     if indicators['MFI'] < 30:
         signals['MFI'] = 'Buy'
     elif indicators['MFI'] > 70:
@@ -204,73 +189,54 @@ def generate_trading_decision(indicators, data):
     if len(buy_signals) > len(sell_signals):
         final_signal = 'Go Long'
         take_profit = entry_point * 1.02  # Example take profit at 2% above entry
-        stop_loss = entry_point * 0.98  # Example stop loss at 2% below entry
+        stop_loss = entry_point * 0.98    # Example stop loss at 2% below entry
     elif len(sell_signals) > len(buy_signals):
         final_signal = 'Go Short'
         take_profit = entry_point * 0.98  # Example take profit at 2% below entry
-        stop_loss = entry_point * 1.02  # Example stop loss at 2% above entry
+        stop_loss = entry_point * 1.02    # Example stop loss at 2% above entry
     else:
         final_signal = 'Hold'
     
-    return final_signal, take_profit, stop_loss, signals
-    
-    # Function to add Fear and Greed Index
-    @st.cache_data(ttl=1800)
-    def fetch_fear_and_greed_index():
-        try:
-            # Dummy data; replace with actual data source
-            index = np.random.randint(0, 100)
-            return index
-        except Exception as e:
-            st.error(f"Error fetching Fear and Greed Index: {e}")
-        return None
+    return final_signal, take_profit, stop_loss
 
-# Streamlit app
-st.title('Bitcoin Technical Analysis and Trading Signals')
+# Streamlit App
+st.title('Bitcoin Technical Analysis')
 
 data = fetch_data(ticker)
-if data is not None:
+
+if data is not None and not data.empty:
+    st.write(f"Data fetched for {ticker}:")
+    st.write(data.tail())
+
     data = calculate_indicators(data)
     indicators = technical_indicators_summary(data)
-    final_signal, take_profit, stop_loss, signals = generate_trading_decision(indicators, data)
-
-    st.subheader('Technical Indicators Summary')
+    
+    st.write("Technical Indicators Summary:")
     st.write(indicators)
 
-    st.subheader('Trading Decision')
-    st.write(f"Final Signal: {final_signal}")
-    st.write(f"Take Profit Level: {take_profit}")
-    st.write(f"Stop Loss Level: {stop_loss}")
-
-    st.subheader('Signals')
-    st.write(signals)
-
+    final_signal, take_profit, stop_loss = generate_trading_decision(indicators, data)
+    
+    st.write(f"Trading Signal: {final_signal}")
+    st.write(f"Take Profit: {take_profit}")
+    st.write(f"Stop Loss: {stop_loss}")
+    
     # Plotting
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close Price'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_20'], mode='lines', name='EMA 20'))
+
+    fig.add_trace(go.Candlestick(x=data.index,
+                                open=data['Open'],
+                                high=data['High'],
+                                low=data['Low'],
+                                close=data['Close'],
+                                name='Candlestick'))
+
     fig.add_trace(go.Scatter(x=data.index, y=data['SMA_20'], mode='lines', name='SMA 20'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_20'], mode='lines', name='EMA 20'))
+    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Middle'], mode='lines', name='BB Middle'))
     fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], mode='lines', name='BB Upper'))
     fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], mode='lines', name='BB Lower'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['VWAP'], mode='lines', name='VWAP'))
+
+    fig.update_layout(title=f'{ticker} Technical Analysis', xaxis_title='Date', yaxis_title='Price')
     st.plotly_chart(fig)
-
-    # Fear and Greed Index
-    fear_and_greed_index = fetch_fear_and_greed_index()
-    st.subheader('Fear and Greed Index')
-    st.write(f"Current Fear and Greed Index: {fear_and_greed_index}")
-
-    # Additional information and charts
-    st.subheader('Historical Data')
-    st.write(data.head())
-
-    st.subheader('Technical Indicators Visualization')
-    fig_indicators = go.Figure()
-    fig_indicators.add_trace(go.Scatter(x=data.index, y=data['MACD'], mode='lines', name='MACD'))
-    fig_indicators.add_trace(go.Scatter(x=data.index, y=data['MACD_Signal'], mode='lines', name='MACD Signal'))
-    fig_indicators.add_trace(go.Scatter(x=data.index, y=data['RSI'], mode='lines', name='RSI'))
-    st.plotly_chart(fig_indicators)
-
-    # Display additional details for options trading
-    st.subheader('Options Trading Decision')
-    st.write("Considering perpetual options trading based on market conditions...")
+else:
+    st.write("No data available to display.")
