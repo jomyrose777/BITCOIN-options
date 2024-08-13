@@ -69,7 +69,10 @@ def calculate_indicators(data):
     data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
     
     # Intraday Momentum Index (IMI)
+    try:
     data['IMI'] = ta.momentum.IntradayMomentumIndex(data['Close'], data['High'], data['Low'], window=14).intraday_momentum_index()
+    except Exception as e:
+    st.error(f"Error calculating IMI: {e}")
     
     # Money Flow Index (MFI)
     data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
