@@ -161,6 +161,7 @@ def generate_trading_decision(indicators, data):
 
     return final_signal, take_profit, stop_loss
 
+
 # Streamlit App
 st.title('Bitcoin Technical Analysis')
 
@@ -178,6 +179,8 @@ if data is not None and not data.empty:
 
     final_signal, take_profit, stop_loss = generate_trading_decision(indicators, data)
     
+    entry_point = data['Close'].iloc[-1]
+    st.write(f"Entry Point: {entry_point}")
     st.write(f"Trading Signal: {final_signal}")
     st.write(f"Take Profit: {take_profit}")
     st.write(f"Stop Loss: {stop_loss}")
