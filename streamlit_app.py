@@ -3,7 +3,6 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import ta
-import plotly.graph_objects as go
 from datetime import datetime
 import pytz
 
@@ -41,61 +40,38 @@ def fetch_data(ticker):
 
 # Function to calculate technical indicators
 def calculate_indicators(data):
-    # Moving Averages
-    data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
-    data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
-
-    # Bollinger Bands
-    bb = ta.volatility.BollingerBands(data['Close'])
-    data['BB_Middle'] = bb.bollinger_mavg()
-    data['BB_Upper'] = bb.bollinger_hband()
-    data['BB_Lower'] = bb.bollinger_lband()
-
-    # MACD
-    macd = ta.trend.MACD(data['Close'])
-    data['MACD'] = macd.macd()
-    data['MACD_Signal'] = macd.macd_signal()
-    data['MACD_Hist'] = macd.macd_diff()
-    
-    # OBV
-    data['OBV'] = ta.volume.OnBalanceVolumeIndicator(data['Close'], data['Volume']).on_balance_volume()
-    
-    # RSI
-    data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
-    
-    # Fibonacci Retracement (dummy levels for illustration)
-    data['Fib_0.236'] = data['Close'].rolling(window=50).max() * 0.236
-    data['Fib_0.382'] = data['Close'].rolling(window=50).max() * 0.382
-    data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
-    
-    # Parabolic SAR
-    data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low'], data['Close']).psar()
-    
-    # Money Flow Index (MFI)
-    data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
-    
-    # Stochastic Oscillator
-    stoch = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close'], window=14, smooth_window=3)
-    data['Stoch_K'] = stoch.stoch()
-    data['Stoch_D'] = stoch.stoch_signal()
-    
-    # Average True Range (ATR)
-    data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close'], window=14).average_true_range()
-    
-    # Ichimoku Cloud
-    ichimoku = ta.trend.IchimokuIndicator(data['High'], data['Low'], window1=9, window2=26, window3=52)
-    data['Ichimoku_A'] = ichimoku.ichimoku_a()
-    data['Ichimoku_B'] = ichimoku.ichimoku_b()
-    data['Ichimoku_Base'] = ichimoku.ichimoku_base_line()
-    data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
-    
-    # VWAP
-    data['VWAP'] = ta.volume.VolumeWeightedAveragePrice(data['High'], data['Low'], data['Close'], data['Volume']).volume_weighted_average_price()
-    
-    # Chaikin Money Flow (CMF)
-    data['CMF'] = ta.volume.ChaikinMoneyFlowIndicator(data['High'], data['Low'], data['Close'], data['Volume']).chaikin_money_flow()
-    
-    data.dropna(inplace=True)
+    try:
+        data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
+        data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
+        bb = ta.volatility.BollingerBands(data['Close'])
+        data['BB_Middle'] = bb.bollinger_mavg()
+        data['BB_Upper'] = bb.bollinger_hband()
+        data['BB_Lower'] = bb.bollinger_lband()
+        macd = ta.trend.MACD(data['Close'])
+        data['MACD'] = macd.macd()
+        data['MACD_Signal'] = macd.macd_signal()
+        data['MACD_Hist'] = macd.macd_diff()
+        data['OBV'] = ta.volume.OnBalanceVolumeIndicator(data['Close'], data['Volume']).on_balance_volume()
+        data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
+        data['Fib_0.236'] = data['Close'].rolling(window=50).max() * 0.236
+        data['Fib_0.382'] = data['Close'].rolling(window=50).max() * 0.382
+        data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
+        data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low'], data['Close']).psar()
+        data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
+        stoch = ta.momentum.StochasticOscillator(data['High'], data['Low'], data['Close'], window=14, smooth_window=3)
+        data['Stoch_K'] = stoch.stoch()
+        data['Stoch_D'] = stoch.stoch_signal()
+        data['ATR'] = ta.volatility.AverageTrueRange(data['High'], data['Low'], data['Close'], window=14).average_true_range()
+        ichimoku = ta.trend.IchimokuIndicator(data['High'], data['Low'], window1=9, window2=26, window3=52)
+        data['Ichimoku_A'] = ichimoku.ichimoku_a()
+        data['Ichimoku_B'] = ichimoku.ichimoku_b()
+        data['Ichimoku_Base'] = ichimoku.ichimoku_base_line()
+        data['Ichimoku_Lead'] = ichimoku.ichimoku_a().shift(26)
+        data['VWAP'] = ta.volume.VolumeWeightedAveragePrice(data['High'], data['Low'], data['Close'], data['Volume']).volume_weighted_average_price()
+        data['CMF'] = ta.volume.ChaikinMoneyFlowIndicator(data['High'], data['Low'], data['Close'], data['Volume']).chaikin_money_flow()
+        data.dropna(inplace=True)
+    except Exception as e:
+        st.error(f"Error calculating indicators: {e}")
     return data
 
 # Function to calculate summary of indicators
@@ -103,27 +79,27 @@ def technical_indicators_summary(data):
     indicators = {}
     try:
         indicators = {
-            'RSI': data['RSI'].iloc[-1],
-            'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
-            'BB_Upper': data['BB_Upper'].iloc[-1],
-            'BB_Lower': data['BB_Lower'].iloc[-1],
-            'SMA_20': data['SMA_20'].iloc[-1],
-            'EMA_20': data['EMA_20'].iloc[-1],
-            'OBV': data['OBV'].iloc[-1],
-            'Fib_0.236': data['Fib_0.236'].iloc[-1],
-            'Fib_0.382': data['Fib_0.382'].iloc[-1],
-            'Fib_0.618': data['Fib_0.618'].iloc[-1],
-            'MFI': data['MFI'].iloc[-1],
-            'Stoch_K': data['Stoch_K'].iloc[-1],
-            'Stoch_D': data['Stoch_D'].iloc[-1],
-            'ATR': data['ATR'].iloc[-1],
-            'Ichimoku_A': data['Ichimoku_A'].iloc[-1],
-            'Ichimoku_B': data['Ichimoku_B'].iloc[-1],
-            'Ichimoku_Base': data['Ichimoku_Base'].iloc[-1],
-            'Ichimoku_Lead': data['Ichimoku_Lead'].iloc[-1],
-            'SAR': data['SAR'].iloc[-1],
-            'VWAP': data['VWAP'].iloc[-1],
-            'CMF': data['CMF'].iloc[-1]
+            'RSI': data['RSI'].iloc[-1] if not data['RSI'].empty else None,
+            'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1] if not data['MACD'].empty else None,
+            'BB_Upper': data['BB_Upper'].iloc[-1] if not data['BB_Upper'].empty else None,
+            'BB_Lower': data['BB_Lower'].iloc[-1] if not data['BB_Lower'].empty else None,
+            'SMA_20': data['SMA_20'].iloc[-1] if not data['SMA_20'].empty else None,
+            'EMA_20': data['EMA_20'].iloc[-1] if not data['EMA_20'].empty else None,
+            'OBV': data['OBV'].iloc[-1] if not data['OBV'].empty else None,
+            'Fib_0.236': data['Fib_0.236'].iloc[-1] if not data['Fib_0.236'].empty else None,
+            'Fib_0.382': data['Fib_0.382'].iloc[-1] if not data['Fib_0.382'].empty else None,
+            'Fib_0.618': data['Fib_0.618'].iloc[-1] if not data['Fib_0.618'].empty else None,
+            'MFI': data['MFI'].iloc[-1] if not data['MFI'].empty else None,
+            'Stoch_K': data['Stoch_K'].iloc[-1] if not data['Stoch_K'].empty else None,
+            'Stoch_D': data['Stoch_D'].iloc[-1] if not data['Stoch_D'].empty else None,
+            'ATR': data['ATR'].iloc[-1] if not data['ATR'].empty else None,
+            'Ichimoku_A': data['Ichimoku_A'].iloc[-1] if not data['Ichimoku_A'].empty else None,
+            'Ichimoku_B': data['Ichimoku_B'].iloc[-1] if not data['Ichimoku_B'].empty else None,
+            'Ichimoku_Base': data['Ichimoku_Base'].iloc[-1] if not data['Ichimoku_Base'].empty else None,
+            'Ichimoku_Lead': data['Ichimoku_Lead'].iloc[-1] if not data['Ichimoku_Lead'].empty else None,
+            'SAR': data['SAR'].iloc[-1] if not data['SAR'].empty else None,
+            'VWAP': data['VWAP'].iloc[-1] if not data['VWAP'].empty else None,
+            'CMF': data['CMF'].iloc[-1] if not data['CMF'].empty else None
         }
     except IndexError as e:
         st.error(f"Error accessing indicator data: {e}")
@@ -132,71 +108,57 @@ def technical_indicators_summary(data):
 # Function to generate trading signals and calculate entry, take profit, and stop loss
 def generate_trading_decision(indicators, data):
     signals = {}
-    entry_point = data['Close'].iloc[-1]
+    entry_point = None
     take_profit = None
     stop_loss = None
 
+    if len(data) > 0:
+        entry_point = data['Close'].iloc[-1]
+
+    if entry_point is None:
+        return 'No data available for trading decision', None, None
+
     # Example logic for signal generation
-    if indicators['RSI'] < 30:
+    if indicators.get('RSI') and indicators['RSI'] < 30:
         signals['RSI'] = 'Buy'
-    elif indicators['RSI'] > 70:
+    elif indicators.get('RSI') and indicators['RSI'] > 70:
         signals['RSI'] = 'Sell'
     else:
         signals['RSI'] = 'Neutral'
 
-    if indicators['MACD'] > 0:
-        signals['MACD'] = 'Buy'
-    elif indicators['MACD'] < 0:
-        signals['MACD'] = 'Sell'
-    else:
-        signals['MACD'] = 'Neutral'
+    if indicators.get('MACD') and indicators.get('MACD_Signal'):
+        macd_diff = indicators['MACD'] - indicators['MACD_Signal']
+        if macd_diff > 0:
+            signals['MACD'] = 'Buy'
+        elif macd_diff < 0:
+            signals['MACD'] = 'Sell'
+        else:
+            signals['MACD'] = 'Neutral'
 
-    # Example: Use Bollinger Bands to determine breakout signals
-    if entry_point > indicators['BB_Upper']:
-        signals['BB'] = 'Sell'
-    elif entry_point < indicators['BB_Lower']:
-        signals['BB'] = 'Buy'
-    else:
-        signals['BB'] = 'Neutral'
+    if indicators.get('BB_Upper') and indicators.get('BB_Lower'):
+        if entry_point > indicators['BB_Upper']:
+            signals['BB'] = 'Sell'
+        elif entry_point < indicators['BB_Lower']:
+            signals['BB'] = 'Buy'
+        else:
+            signals['BB'] = 'Neutral'
 
-    # Example logic for additional indicators
-    if indicators['MFI'] < 30:
+    if indicators.get('MFI') and indicators['MFI'] < 30:
         signals['MFI'] = 'Buy'
-    elif indicators['MFI'] > 70:
+    elif indicators.get('MFI') and indicators['MFI'] > 70:
         signals['MFI'] = 'Sell'
     else:
         signals['MFI'] = 'Neutral'
-    
-    if indicators['Stoch_K'] < indicators['Stoch_D']:
-        signals['Stochastic'] = 'Sell'
-    else:
-        signals['Stochastic'] = 'Buy'
-    
-    if entry_point < indicators['VWAP']:
-        signals['VWAP'] = 'Sell'
-    else:
-        signals['VWAP'] = 'Buy'
-    
-    if indicators['CMF'] > 0:
-        signals['CMF'] = 'Buy'
-    else:
-        signals['CMF'] = 'Sell'
 
-    # Combine signals to make final decision
-    buy_signals = [value for value in signals.values() if value == 'Buy']
-    sell_signals = [value for value in signals.values() if value == 'Sell']
-    
-    if len(buy_signals) > len(sell_signals):
-        final_signal = 'Go Long'
-        take_profit = entry_point * 1.02  # Example take profit at 2% above entry
-        stop_loss = entry_point * 0.98    # Example stop loss at 2% below entry
-    elif len(sell_signals) > len(buy_signals):
-        final_signal = 'Go Short'
-        take_profit = entry_point * 0.98  # Example take profit at 2% below entry
-        stop_loss = entry_point * 1.02    # Example stop loss at 2% above entry
+    if len(set(signals.values())) > 1:
+        final_signal = 'Go Long' if 'Buy' in signals.values() else 'Go Short' if 'Sell' in signals.values() else 'Hold'
+        take_profit = entry_point * 1.02 if final_signal == 'Go Long' else entry_point * 0.98
+        stop_loss = entry_point * 0.98 if final_signal == 'Go Long' else entry_point * 1.02
     else:
         final_signal = 'Hold'
-    
+        take_profit = None
+        stop_loss = None
+
     return final_signal, take_profit, stop_loss
 
 # Streamlit App
@@ -219,24 +181,6 @@ if data is not None and not data.empty:
     st.write(f"Trading Signal: {final_signal}")
     st.write(f"Take Profit: {take_profit}")
     st.write(f"Stop Loss: {stop_loss}")
-    
-    # Plotting
-    fig = go.Figure()
 
-    fig.add_trace(go.Candlestick(x=data.index,
-                                open=data['Open'],
-                                high=data['High'],
-                                low=data['Low'],
-                                close=data['Close'],
-                                name='Candlestick'))
-
-    fig.add_trace(go.Scatter(x=data.index, y=data['SMA_20'], mode='lines', name='SMA 20'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['EMA_20'], mode='lines', name='EMA 20'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Middle'], mode='lines', name='BB Middle'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], mode='lines', name='BB Upper'))
-    fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], mode='lines', name='BB Lower'))
-
-    fig.update_layout(title=f'{ticker} Technical Analysis', xaxis_title='Date', yaxis_title='Price')
-    st.plotly_chart(fig)
 else:
     st.write("No data available to display.")
