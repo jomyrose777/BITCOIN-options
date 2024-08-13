@@ -136,13 +136,13 @@ def generate_trading_decision(indicators, data):
     take_profit = None
     stop_loss = None
 
-# Example logic for signal generation
-if indicators['RSI'] < 30:
-signals['RSI'] = 'Buy'
-elif indicators['RSI'] > 70:
-signals['RSI'] = 'Sell'
-else:
-signals['RSI'] = 'Neutral'
+    # Example logic for signal generation
+    if indicators['RSI'] < 30:
+        signals['RSI'] = 'Buy'
+    elif indicators['RSI'] > 70:
+        signals['RSI'] = 'Sell'
+    else:
+        signals['RSI'] = 'Neutral'
 
 if indicators['MACD'] > 0:
 signals['MACD'] = 'Buy'
