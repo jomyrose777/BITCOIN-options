@@ -69,7 +69,7 @@ def calculate_indicators(data):
     data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
     
     # Parabolic SAR
-    data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low']).psar()
+    data['SAR'] = ta.trend.PSARIndicator(data['High'], data['Low'], data['Close']).psar()
     
     # Money Flow Index (MFI)
     data['MFI'] = ta.volume.MFIIndicator(data['High'], data['Low'], data['Close'], data['Volume'], window=14).money_flow_index()
