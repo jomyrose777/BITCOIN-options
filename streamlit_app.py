@@ -15,8 +15,10 @@ est = pytz.timezone('America/New_York')
 
 def to_est(dt):
     if dt.tzinfo is None:
-    dt = est.localize(dt)
-    return dt.astimezone(est)
+        dt = est.localize(dt)
+        return dt.astimezone(est)
+    else:
+        return dt.astimezone(est)
 
 # Function to fetch live data from Yahoo Finance
 @st.cache_data(ttl=30)
