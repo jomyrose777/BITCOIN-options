@@ -103,31 +103,31 @@ return data
 
 # Function to calculate summary of indicators
 def technical_indicators_summary(data):
-indicators = {
-'RSI': data['RSI'].iloc[-1],
-'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
-'BB_Upper': data['BB_Upper'].iloc[-1],
-'BB_Lower': data['BB_Lower'].iloc[-1],
-'SMA_20': data['SMA_20'].iloc[-1],
-'EMA_20': data['EMA_20'].iloc[-1],
-'OBV': data['OBV'].iloc[-1],
-'Fib_0.236': data['Fib_0.236'].iloc[-1],
-'Fib_0.382': data['Fib_0.382'].iloc[-1],
-'Fib_0.618': data['Fib_0.618'].iloc[-1],
-'IMI': data['IMI'].iloc[-1],
-'MFI': data['MFI'].iloc[-1],
-'Stoch_K': data['Stoch_K'].iloc[-1],
-'Stoch_D': data['Stoch_D'].iloc[-1],
-'ATR': data['ATR'].iloc[-1],
-'Ichimoku_A': data['Ichimoku_A'].iloc[-1],
-'Ichimoku_B': data['Ichimoku_B'].iloc[-1],
-'Ichimoku_Base': data['Ichimoku_Base'].iloc[-1],
-'Ichimoku_Lead': data['Ichimoku_Lead'].iloc[-1],
-'SAR': data['SAR'].iloc[-1],
-'VWAP': data['VWAP'].iloc[-1],
-'CMF': data['CMF'].iloc[-1]
-}
-return indicators
+    indicators = {
+        'RSI': data['RSI'].iloc[-1],
+        'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
+        'BB_Upper': data['BB_Upper'].iloc[-1],
+        'BB_Lower': data['BB_Lower'].iloc[-1],
+        'SMA_20': data['SMA_20'].iloc[-1],
+        'EMA_20': data['EMA_20'].iloc[-1],
+        'OBV': data['OBV'].iloc[-1],
+        'Fib_0.236': data['Fib_0.236'].iloc[-1],
+        'Fib_0.382': data['Fib_0.382'].iloc[-1],
+        'Fib_0.618': data['Fib_0.618'].iloc[-1],
+        'IMI': data['IMI'].iloc[-1],
+        'MFI': data['MFI'].iloc[-1],
+        'Stoch_K': data['Stoch_K'].iloc[-1],
+        'Stoch_D': data['Stoch_D'].iloc[-1],
+        'ATR': data['ATR'].iloc[-1],
+        'Ichimoku_A': data['Ichimoku_A'].iloc[-1],
+        'Ichimoku_B': data['Ichimoku_B'].iloc[-1],
+        'Ichimoku_Base': data['Ichimoku_Base'].iloc[-1],
+        'Ichimoku_Lead': data['Ichimoku_Lead'].iloc[-1],
+        'SAR': data['SAR'].iloc[-1],
+        'VWAP': data['VWAP'].iloc[-1],
+        'CMF': data['CMF'].iloc[-1]
+    }
+    return indicators
 
 # Function to generate trading signals and calculate entry, take profit, and stop loss
 def generate_trading_decision(indicators, data):
