@@ -20,7 +20,7 @@ def to_est(dt):
     else:
         return dt.astimezone(est)
 
-# Function to fetch live data from Yahoo Finance
+#Function to fetch live data from Yahoo Finance
 @st.cache_data(ttl=30)
 def fetch_data(ticker):
     try:
