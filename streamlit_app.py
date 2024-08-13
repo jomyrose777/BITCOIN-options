@@ -23,21 +23,21 @@ def to_est(dt):
 # Function to fetch live data from Yahoo Finance
 @st.cache_data(ttl=30)
 def fetch_data(ticker):
-try:
-data = yf.download(ticker, period='1d', interval='1m')
-if data.empty:
-st.error("No data fetched from Yahoo Finance.")
-return None
+    try:
+        data = yf.download(ticker, period='1d', interval='1m')
+        if data.empty:
+            st.error("No data fetched from Yahoo Finance.")
+            return None
 
-if data.index.tzinfo is None:
-data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
-else:
-data.index = data.index.tz_convert(est)
+        if data.index.tzinfo is None:
+            data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
+        else:
+            data.index = data.index.tz_convert(est)
 
-return data
-except Exception as e:
-st.error(f"Error fetching data: {e}")
-return None
+        return data
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return None
 
 # Function to calculate technical indicators
 def calculate_indicators(data):
