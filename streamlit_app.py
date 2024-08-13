@@ -28,6 +28,7 @@ def fetch_data(ticker):
             st.error("No data fetched from Yahoo Finance.")
             return None
 
+        # Convert datetime index to EST timezone
         if data.index.tzinfo is None:
             data.index = data.index.tz_localize(pytz.utc).tz_convert(est)
         else:
@@ -39,7 +40,6 @@ def fetch_data(ticker):
         return None
 
 def calculate_indicators(data):
-    # Check if data is sufficient for calculations
     if len(data) < 14:
         st.error("Insufficient data to calculate indicators.")
         return data
@@ -47,37 +47,37 @@ def calculate_indicators(data):
     # Moving Averages
     data['SMA_20'] = ta.trend.SMAIndicator(data['Close'], window=20).sma_indicator()
     data['EMA_20'] = ta.trend.EMAIndicator(data['Close'], window=20).ema_indicator()
-    
+
     # Bollinger Bands
     bb = ta.volatility.BollingerBands(data['Close'])
     data['BB_Middle'] = bb.bollinger_mavg()
     data['BB_Upper'] = bb.bollinger_hband()
     data['BB_Lower'] = bb.bollinger_lband()
-    
+
     # MACD
     macd = ta.trend.MACD(data['Close'])
     data['MACD'] = macd.macd()
     data['MACD_Signal'] = macd.macd_signal()
     data['MACD_Hist'] = macd.macd_diff()
-    
+
     # OBV
     data['OBV'] = ta.volume.OnBalanceVolumeIndicator(data['Close'], data['Volume']).on_balance_volume()
-    
+
     # RSI
     data['RSI'] = ta.momentum.RSIIndicator(data['Close'], window=14).rsi()
-    
+
     # Fibonacci Retracement (dummy levels for illustration)
     data['Fib_0.236'] = data['Close'].rolling(window=50).max() * 0.236
     data['Fib_0.382'] = data['Close'].rolling(window=50).max() * 0.382
     data['Fib_0.618'] = data['Close'].rolling(window=50).max() * 0.618
-    
+
     # Williams %R
     try:
         williams_r = ta.momentum.WilliamsRIndicator(high=data['High'], low=data['Low'], close=data['Close'])
         data['Williams %R'] = williams_r.williams_r()
-    except TypeError as e:
+    except Exception as e:
         st.error(f"Error calculating Williams %R: {e}")
-        data['Williams %R'] = np.nan  # Assign NaN if there's an error
+        data['Williams %R'] = np.nan
 
     # Money Flow Index (MFI)
     mfi = ta.volume.MFIIndicator(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'])
@@ -95,9 +95,9 @@ def calculate_indicators(data):
             data['ATR'] = atr.average_true_range()
         except Exception as e:
             st.error(f"Error calculating ATR: {e}")
-            data['ATR'] = np.nan  # Assign NaN if there's an error
+            data['ATR'] = np.nan
     else:
-        data['ATR'] = np.nan  # Not enough data to calculate ATR
+        data['ATR'] = np.nan
 
     # Ichimoku Cloud
     ichimoku = ta.trend.IchimokuIndicator(high=data['High'], low=data['Low'], window1=9, window2=26, window3=52)
@@ -110,9 +110,9 @@ def calculate_indicators(data):
     try:
         sar = ta.trend.PSARIndicator(high=data['High'], low=data['Low'], close=data['Close'])
         data['SAR'] = sar.psar()
-    except TypeError as e:
+    except Exception as e:
         st.error(f"Error calculating PSAR: {e}")
-        data['SAR'] = np.nan  # Assign NaN if there's an error
+        data['SAR'] = np.nan
 
     # VWAP
     vwap = ta.volume.VolumeWeightedAveragePrice(high=data['High'], low=data['Low'], close=data['Close'], volume=data['Volume'])
@@ -125,35 +125,20 @@ def calculate_indicators(data):
     data.dropna(inplace=True)
     return data
 
-# Function to calculate summary of indicators
 def technical_indicators_summary(data):
-    indicators = {
-        'RSI': data['RSI'].iloc[-1],
-        'MACD': data['MACD'].iloc[-1] - data['MACD_Signal'].iloc[-1],
-        'BB_Upper': data['BB_Upper'].iloc[-1],
-        'BB_Lower': data['BB_Lower'].iloc[-1],
-        'SMA_20': data['SMA_20'].iloc[-1],
-        'EMA_20': data['EMA_20'].iloc[-1],
-        'OBV': data['OBV'].iloc[-1],
-        'Fib_0.236': data['Fib_0.236'].iloc[-1],
-        'Fib_0.382': data['Fib_0.382'].iloc[-1],
-        'Fib_0.618': data['Fib_0.618'].iloc[-1],
-        'Williams %R': data['Williams %R'].iloc[-1],
-        'MFI': data['MFI'].iloc[-1],
-        'Stoch_K': data['Stoch_K'].iloc[-1],
-        'Stoch_D': data['Stoch_D'].iloc[-1],
-        'ATR': data['ATR'].iloc[-1],
-        'Ichimoku_A': data['Ichimoku_A'].iloc[-1],
-        'Ichimoku_B': data['Ichimoku_B'].iloc[-1],
-        'Ichimoku_Base': data['Ichimoku_Base'].iloc[-1],
-        'Ichimoku_Lead': data['Ichimoku_Lead'].iloc[-1],
-        'SAR': data['SAR'].iloc[-1],
-        'VWAP': data['VWAP'].iloc[-1],
-        'CMF': data['CMF'].iloc[-1]
-    }
+    indicators = {}
+    for col in [
+        'RSI', 'MACD', 'MACD_Signal', 'BB_Upper', 'BB_Lower', 'SMA_20',
+        'EMA_20', 'OBV', 'Fib_0.236', 'Fib_0.382', 'Fib_0.618',
+        'Williams %R', 'MFI', 'Stoch_K', 'Stoch_D', 'ATR', 'Ichimoku_A',
+        'Ichimoku_B', 'Ichimoku_Base', 'Ichimoku_Lead', 'SAR', 'VWAP', 'CMF'
+    ]:
+        if col in data.columns and not data[col].empty:
+            indicators[col] = data[col].iloc[-1]
+        else:
+            indicators[col] = 'N/A'
     return indicators
 
-# Function to generate trading signals and calculate entry, take profit, and stop loss
 def generate_trading_decision(indicators, data):
     signals = {}
     entry_point = data['Close'].iloc[-1]
@@ -161,106 +146,147 @@ def generate_trading_decision(indicators, data):
     stop_loss = None
 
     # Example logic for signal generation
-    if indicators['RSI'] < 30:
-        signals['RSI'] = 'Buy'
-    elif indicators['RSI'] > 70:
-        signals['RSI'] = 'Sell'
-    else:
-        signals['RSI'] = 'Neutral'
+    if indicators['RSI'] != 'N/A':
+        if indicators['RSI'] < 30:
+            signals['RSI'] = 'Buy'
+            take_profit = entry_point * 1.05  # Example Take Profit
+            stop_loss = entry_point * 0.95   # Example Stop Loss
+        elif indicators['RSI'] > 70:
+            signals['RSI'] = 'Sell'
+            take_profit = entry_point * 0.95  # Example Take Profit
+            stop_loss = entry_point * 1.05   # Example Stop Loss
+        else:
+            signals['RSI'] = 'Neutral'
     
-    if indicators['MACD'] > 0:
-        signals['MACD'] = 'Buy'
-    elif indicators['MACD'] < 0:
-        signals['MACD'] = 'Sell'
-    else:
-        signals['MACD'] = 'Neutral'
+    if indicators['MACD'] != 'N/A':
+        if indicators['MACD'] > 0:
+            signals['MACD'] = 'Buy'
+        elif indicators['MACD'] < 0:
+            signals['MACD'] = 'Sell'
+        else:
+            signals['MACD'] = 'Neutral'
     
-    # Example: Use Bollinger Bands to determine breakout signals
-    if entry_point > indicators['BB_Upper']:
-        signals['BB'] = 'Sell'
-    elif entry_point < indicators['BB_Lower']:
-        signals['BB'] = 'Buy'
-    else:
-        signals['BB'] = 'Neutral'
+    if indicators['BB_Upper'] != 'N/A' and indicators['BB_Lower'] != 'N/A':
+        if entry_point > indicators['BB_Upper']:
+            signals['BB'] = 'Sell'
+        elif entry_point < indicators['BB_Lower']:
+            signals['BB'] = 'Buy'
+        else:
+            signals['BB'] = 'Neutral'
     
-    # Example logic for additional indicators
-    if indicators['Williams %R'] < -80:
-        signals['Williams %R'] = 'Buy'
-    elif indicators['Williams %R'] > -20:
-        signals['Williams %R'] = 'Sell'
-    else:
-        signals['Williams %R'] = 'Neutral'
+    if indicators['Williams %R'] != 'N/A':
+        if indicators['Williams %R'] < -80:
+            signals['Williams %R'] = 'Buy'
+        elif indicators['Williams %R'] > -20:
+            signals['Williams %R'] = 'Sell'
+        else:
+            signals['Williams %R'] = 'Neutral'
     
-    if indicators['MFI'] < 20:
-        signals['MFI'] = 'Buy'
-    elif indicators['MFI'] > 80:
-        signals['MFI'] = 'Sell'
-    else:
-        signals['MFI'] = 'Neutral'
+    if indicators['MFI'] != 'N/A':
+        if indicators['MFI'] < 20:
+            signals['MFI'] = 'Buy'
+        elif indicators['MFI'] > 80:
+            signals['MFI'] = 'Sell'
+        else:
+            signals['MFI'] = 'Neutral'
     
-    if indicators['Stoch_K'] < indicators['Stoch_D']:
-        signals['Stochastic'] = 'Sell'
-    else:
-        signals['Stochastic'] = 'Buy'
+    if indicators['Stoch_K'] != 'N/A' and indicators['Stoch_D'] != 'N/A':
+        if indicators['Stoch_K'] < indicators['Stoch_D']:
+            signals['Stochastic'] = 'Sell'
+        else:
+            signals['Stochastic'] = 'Buy'
     
-    if entry_point < indicators['VWAP']:
-        signals['VWAP'] = 'Sell'
-    else:
-        signals['VWAP'] = 'Buy'
+    if indicators['VWAP'] != 'N/A':
+        if entry_point < indicators['VWAP']:
+            signals['VWAP'] = 'Sell'
+        else:
+            signals['VWAP'] = 'Buy'
     
-    if indicators['CMF'] > 0:
-        signals['CMF'] = 'Buy'
-    else:
-        signals['CMF'] = 'Sell'
+    if indicators['CMF'] != 'N/A':
+        if indicators['CMF'] > 0:
+            signals['CMF'] = 'Buy'
+        else:
+            signals['CMF'] = 'Sell'
     
-    # Determine final trading signal
+    # Determine final signal
     buy_signals = [k for k, v in signals.items() if v == 'Buy']
     sell_signals = [k for k, v in signals.items() if v == 'Sell']
-
+    
     if len(buy_signals) > len(sell_signals):
         final_signal = 'Go Long'
-        take_profit = entry_point * 1.05
-        stop_loss = entry_point * 0.95
     elif len(sell_signals) > len(buy_signals):
         final_signal = 'Go Short'
-        take_profit = entry_point * 0.95
-        stop_loss = entry_point * 1.05
     else:
         final_signal = 'Neutral'
     
-    return final_signal, take_profit, stop_loss
+    return signals, final_signal, take_profit, stop_loss
 
-# Main Streamlit app
+def plot_data(data):
+    fig = go.Figure()
+
+    # Plot the price data
+    fig.add_trace(go.Candlestick(x=data.index,
+                                 open=data['Open'],
+                                 high=data['High'],
+                                 low=data['Low'],
+                                 close=data['Close'],
+                                 name='Candlestick'))
+    
+    # Plot moving averages
+    if 'SMA_20' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['SMA_20'], mode='lines', name='SMA 20'))
+    if 'EMA_20' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['EMA_20'], mode='lines', name='EMA 20'))
+
+    # Plot Bollinger Bands
+    if 'BB_Upper' in data.columns and 'BB_Lower' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], mode='lines', name='BB Upper', line=dict(color='red')))
+        fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], mode='lines', name='BB Lower', line=dict(color='green')))
+
+    # Plot MACD
+    if 'MACD' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['MACD'], mode='lines', name='MACD', line=dict(color='blue')))
+    if 'MACD_Signal' in data.columns:
+        fig.add_trace(go.Scatter(x=data.index, y=data['MACD_Signal'], mode='lines', name='MACD Signal', line=dict(color='orange')))
+
+    fig.update_layout(title='Bitcoin Price and Indicators', xaxis_title='Date', yaxis_title='Price')
+    st.plotly_chart(fig)
+
 def main():
     st.title("Bitcoin Trading Analysis")
+
+    # Fetch data
     data = fetch_data(ticker)
-    if data is not None:
-        st.write(f"Data fetched for {ticker}")
-        
-        st.write("## Technical Indicators")
-        data = calculate_indicators(data)
-        indicators = technical_indicators_summary(data)
-        st.write(pd.DataFrame(indicators, index=[0]))
-        
-        final_signal, take_profit, stop_loss = generate_trading_decision(indicators, data)
-        st.write("## Trading Signal")
-        st.write(f"**Final Signal:** {final_signal}")
-        st.write(f"**Take Profit:** ${take_profit:.2f}" if take_profit else "Take Profit: N/A")
-        st.write(f"**Stop Loss:** ${stop_loss:.2f}" if stop_loss else "Stop Loss: N/A")
-        
-        # Plotting
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=data.index, y=data['Close'], mode='lines', name='Close'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['SMA_20'], mode='lines', name='SMA 20'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['EMA_20'], mode='lines', name='EMA 20'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['BB_Upper'], mode='lines', name='BB Upper'))
-        fig.add_trace(go.Scatter(x=data.index, y=data['BB_Lower'], mode='lines', name='BB Lower'))
-        
-        fig.update_layout(title='Bitcoin Price with Technical Indicators',
-                          xaxis_title='Date',
-                          yaxis_title='Price',
-                          template='plotly_dark')
-        st.plotly_chart(fig)
+    if data is None:
+        return
+
+    # Calculate indicators
+    data = calculate_indicators(data)
+
+    # Display data
+    st.write("### Latest Data")
+    st.write(data.tail())
+
+    # Display technical indicators summary
+    indicators = technical_indicators_summary(data)
+    st.subheader('Technical Indicators Summary')
+    st.write(indicators)
+
+    # Generate trading decision
+    signals, final_signal, take_profit, stop_loss = generate_trading_decision(indicators, data)
+    
+    # Display trading decision
+    st.subheader('Trading Decision')
+    st.write(f"Final Signal: {final_signal}")
+    st.write(f"Take Profit Level: {take_profit}")
+    st.write(f"Stop Loss Level: {stop_loss}")
+
+    # Display signals
+    st.subheader('Signals')
+    st.write(signals)
+
+    # Plot data
+    plot_data(data)
 
 if __name__ == "__main__":
     main()
